@@ -2,11 +2,13 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-AIStat is a lightweight, read-only inspection and performance-readiness tool for Linux NVIDIA compute nodes.
+**AI infrastructure inspection, diagnostics, and optimization intelligence for LLM deployment and high-performance inference.**
 
-It collects host and workload facts, normalizes them into one node model, builds a topology graph, and evaluates 25 conservative rules. Every finding includes evidence, impact, a recommendation, and a verification step. AIStat does not tune the host, modify configuration, run benchmarks, require a daemon, or require network access during inspection.
+AIStat unifies the analysis of hardware topology, the CUDA software stack, containers, and inference runtimes on Linux NVIDIA nodes. Its purpose is to find deployment blockers and performance bottlenecks, explain the evidence behind them, and produce optimization recommendations that engineers can verify.
 
-> Know the node before you tune it.
+The long-term goal is not another GPU inventory command. AIStat is being built to turn GPU-server facts into an explainable optimization workflow for large-model deployment and inference: understand every layer of the node, diagnose cross-layer problems, recommend changes, and verify whether those changes actually improve the workload.
+
+> **Understand the node. Diagnose the stack. Optimize the inference path.**
 
 ## Project status
 
@@ -19,7 +21,24 @@ AIStat is preparing for `v0.1.0`.
 
 See [validation status](docs/validation.md) for the exact release gates.
 
-## What AIStat inspects
+## Product vision
+
+```text
+Inspect -> Model -> Diagnose -> Recommend -> Validate -> Optimize
+```
+
+AIStat is designed around a progressive optimization loop:
+
+1. **Inspect:** collect trustworthy facts from hardware, Linux, NVIDIA, containers, and inference runtimes.
+2. **Model:** connect CPU, NUMA, PCIe, GPU, NIC/RDMA, CUDA, containers, and processes in one topology-aware node model.
+3. **Diagnose:** identify deployment blockers, compatibility failures, resource-placement mistakes, and performance bottlenecks.
+4. **Recommend:** produce evidence-backed optimization plans instead of generic tuning advice.
+5. **Validate:** compare the relevant facts and workload results before and after a change.
+6. **Optimize:** evolve toward a controlled, auditable optimization workflow for GPU servers running large-model inference.
+
+The current `v0.1` is the read-only foundation of that vision. It focuses on node visibility, normalized modeling, topology, runtime context, and conservative diagnostics. It does **not** yet claim automatic tuning or autonomous host modification.
+
+## Current v0.1 foundation
 
 | Layer | Coverage |
 |---|---|
@@ -28,7 +47,7 @@ See [validation status](docs/validation.md) for the exact release gates.
 | NVIDIA stack | GPU inventory and health, driver, driver-supported CUDA, installed CUDA toolkits, NCCL, Xid events |
 | Containers | Docker availability, NVIDIA Container Toolkit, cgroup/cpuset/memory, shared memory, GPU visibility |
 | AI runtimes | Process affinity, PyTorch CUDA probe, vLLM and SGLang placement/parallelism |
-| Judgment | Deployment readiness, performance readiness, and 25 evidence-backed rules |
+| Diagnosis | Deployment readiness, performance readiness, and 25 evidence-backed rules |
 
 The frozen rule catalog is documented in [docs/rules.md](docs/rules.md).
 
