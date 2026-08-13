@@ -34,6 +34,31 @@ func TestParseCPUList(t *testing.T) {
 	if _, err := ParseCPUList("4-1"); err == nil {
 		t.Fatal("reverse range must fail")
 	}
+	if _, err := ParseCPUList("0-2147483647"); err == nil {
+		t.Fatal("unbounded range must fail")
+	}
+}
+
+func FuzzParseCPUList(f *testing.F) {
+	for _, seed := range []string{"0", "0-3", "0-2,4,6-7", "", "4-1", "0-2147483647", "x"} {
+		f.Add(seed)
+	}
+	f.Fuzz(func(t *testing.T, raw string) {
+		values, err := ParseCPUList(raw)
+		if err != nil {
+			return
+		}
+		seen := map[int]bool{}
+		for _, value := range values {
+			if value < 0 || value > maxCPUIndex {
+				t.Fatalf("CPU index outside parser bounds: %d", value)
+			}
+			if seen[value] {
+				t.Fatalf("duplicate CPU index: %d", value)
+			}
+			seen[value] = true
+		}
+	})
 }
 
 func TestCollectCacheFixture(t *testing.T) {

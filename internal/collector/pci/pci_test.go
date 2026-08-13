@@ -18,6 +18,19 @@ func TestParseACS(t *testing.T) {
 	}
 }
 
+func FuzzParseACS(f *testing.F) {
+	f.Add("0000:00:01.0 PCI bridge\n\tACSCtl: ReqRedir+ CmpltRedir- UpstreamFwd-\n")
+	f.Add("")
+	f.Add("malformed\x00input\n\tACSCtl: ReqRedir+\n")
+	f.Fuzz(func(t *testing.T, raw string) {
+		for address := range ParseACS(raw) {
+			if address == "" {
+				t.Fatal("ACS parser emitted an empty PCI address")
+			}
+		}
+	})
+}
+
 func TestCollectFixture(t *testing.T) {
 	root := filepath.Join("..", "..", "..", "testdata", "fixtures", "linux", "ubuntu2404-single-numa")
 	result := Collector{}.Collect(context.Background(), collector.Env{FileSystem: fsx.Rooted{Root: root}, Platform: "windows", Fixture: true})

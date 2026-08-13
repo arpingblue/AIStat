@@ -20,6 +20,13 @@ jobs:
         run: test -z "$(gofmt -l cmd internal)"
       - name: Test
         run: go test -race -coverprofile=coverage.out ./...
+      - name: Parser fuzz smoke
+        run: |
+          go test ./internal/collector/cpu -run=^$ -fuzz=^FuzzParseCPUList$ -fuzztime=3s
+          go test ./internal/collector/pci -run=^$ -fuzz=^FuzzParseACS$ -fuzztime=3s
+          go test ./internal/collector/nvidia -run=^$ -fuzz=^FuzzParseNvidiaCSV$ -fuzztime=3s
+          go test ./internal/collector/nvidia -run=^$ -fuzz=^FuzzParseNvidiaTopology$ -fuzztime=3s
+          go test ./internal/collector/process -run=^$ -fuzz=^FuzzParseAllowedArgs$ -fuzztime=3s
       - name: Vet
         run: go vet ./...
       - name: Staticcheck

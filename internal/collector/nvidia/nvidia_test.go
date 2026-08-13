@@ -76,6 +76,26 @@ func FuzzParseNvidiaCSV(f *testing.F) {
 	})
 }
 
+func FuzzParseNvidiaTopology(f *testing.F) {
+	f.Add("\tGPU0\tGPU1\tNIC0\tCPU Affinity\tNUMA Affinity\nGPU0\tX\tNV4\tPIX\t0-3\t0\nGPU1\tNV4\tX\tSYS\t4-7\t1\n")
+	f.Add("")
+	f.Add("\tGPU0\tGPU1\nGPU0\tX\tFUTURE_TOKEN\n")
+	f.Fuzz(func(t *testing.T, raw string) {
+		gpus := []model.GPU{{Index: 0, UUID: "GPU-0"}, {Index: 1, UUID: "GPU-1"}}
+		links, connections := ParseTopologyMatrix(raw, gpus)
+		for _, link := range links {
+			if link.FromGPU == "" || link.ToGPU == "" || link.Distance < 0 {
+				t.Fatalf("invalid topology link: %#v", link)
+			}
+		}
+		for _, connection := range connections {
+			if connection.From == "" || connection.To == "" || connection.Distance < 0 {
+				t.Fatalf("invalid topology connection: %#v", connection)
+			}
+		}
+	})
+}
+
 func TestCollectFixtureCommands(t *testing.T) {
 	root := filepath.Join("..", "..", "..", "testdata", "fixtures")
 	query, err := os.ReadFile(filepath.Join(root, "nvidia", "single-l4", "query-gpu.csv"))

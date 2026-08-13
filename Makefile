@@ -1,13 +1,20 @@
 BINARY := aistat
 PKG := ./...
 
-.PHONY: build test vet fmt staticcheck cross clean
+.PHONY: build test fuzz vet fmt staticcheck cross clean
 
 build:
 	CGO_ENABLED=0 go build -trimpath -o bin/$(BINARY) ./cmd/aistat
 
 test:
 	go test -race $(PKG)
+
+fuzz:
+	go test ./internal/collector/cpu -run=^$$ -fuzz=^FuzzParseCPUList$$ -fuzztime=10s
+	go test ./internal/collector/pci -run=^$$ -fuzz=^FuzzParseACS$$ -fuzztime=10s
+	go test ./internal/collector/nvidia -run=^$$ -fuzz=^FuzzParseNvidiaCSV$$ -fuzztime=10s
+	go test ./internal/collector/nvidia -run=^$$ -fuzz=^FuzzParseNvidiaTopology$$ -fuzztime=10s
+	go test ./internal/collector/process -run=^$$ -fuzz=^FuzzParseAllowedArgs$$ -fuzztime=10s
 
 vet:
 	go vet $(PKG)

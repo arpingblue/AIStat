@@ -14,6 +14,11 @@ import (
 
 type Collector struct{}
 
+// Linux CPU identifiers are bounded by the kernel's configured NR_CPUS.
+// Keep the parser's ceiling deliberately generous while rejecting values that
+// could otherwise make a malformed range allocate indefinitely or overflow.
+const maxCPUIndex = 1<<20 - 1
+
 func (Collector) ID() collector.ID                 { return "cpu" }
 func (Collector) Provides() []collector.Capability { return []collector.Capability{"cpu"} }
 func (Collector) Requires() []collector.Capability { return nil }
@@ -180,6 +185,9 @@ func ParseCPUList(raw string) ([]int, error) {
 			if err != nil || last < first {
 				return nil, fmt.Errorf("invalid CPU range %q", part)
 			}
+		}
+		if first > maxCPUIndex || last > maxCPUIndex {
+			return nil, fmt.Errorf("CPU range %q exceeds supported index %d", part, maxCPUIndex)
 		}
 		for value := first; value <= last; value++ {
 			if !seen[value] {

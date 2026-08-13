@@ -19,10 +19,19 @@ The cross-built uncompressed binaries are below 6 MiB. GoReleaser snapshot archi
 
 Ubuntu CI runs race-enabled tests, vet, staticcheck, CPU-only CLI JSON smoke, shell syntax checks, an offline installer simulation, both release builds, and a GoReleaser snapshot. Windows CI runs all portable logic and Linux-fixture tests and both cross-builds.
 
+The first complete GitHub-hosted validation passed on 2026-08-13:
+
+- [GitHub Actions run 31678644444](https://github.com/arpingblue/AIStat/actions/runs/31678644444)
+- Linux job: formatting, race tests, vet, staticcheck, CPU-only JSON smoke, `amd64`/`arm64` builds, installer verification, and GoReleaser snapshot passed.
+- Windows job: portable logic, Linux fixtures, vet, and both Linux cross-builds passed.
+
+Bounded parser fuzz targets cover CPU lists, NUMA lists, meminfo, NVIDIA CSV/topology, PCI ACS, and allowlisted runtime arguments. CI executes short fuzz smoke sessions; longer runs are available through `make fuzz`.
+
 ## Still required before `v0.1.0`
 
-- A real Ubuntu CPU-only CI run on GitHub Actions.
 - At least one real NVIDIA Linux integration run covering GPU inventory, topology, Xid permission behavior, Docker/NVIDIA Container Toolkit, and an active framework/runtime.
 - Review the generated report from that host for privacy and false positives.
+
+The project owner will perform this NVIDIA validation manually when a suitable Linux host is available. Until its sanitized evidence is recorded here, the repository remains pre-release and must not be tagged `v0.1.0`.
 
 Windows results and fixture coverage must not be represented as real Linux/NVIDIA validation. No `v0.1.0` tag should be published until the remaining gates are recorded here.
