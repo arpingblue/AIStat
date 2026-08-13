@@ -2,6 +2,12 @@
 
 All notable changes to AIStat are documented in this file.
 
+## [0.1.1] - 2026-08-13
+
+- Merged the complete contribution guide into the English and Chinese homepages.
+- Added matching language navigation and clearer issue, pull request, privacy, collector, rule, and schema guidance.
+- Published from a public repository with release provenance support.
+
 ## [0.1.0] - 2026-08-13
 
 AIStat's first public release establishes the read-only diagnostic foundation for Linux NVIDIA inference nodes.
@@ -31,4 +37,5 @@ AIStat's first public release establishes the read-only diagnostic foundation fo
 - Performance readiness can remain unknown without an active workload or time-series evidence.
 - Kubernetes, Slurm, multi-node diagnosis, profiling, benchmarks, and automatic tuning are not part of v0.1.0.
 
+[0.1.1]: https://github.com/arpingblue/AIStat/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/arpingblue/AIStat/releases/tag/v0.1.0

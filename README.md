@@ -24,7 +24,7 @@ To install a specific version or directory:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/arpingblue/AIStat/main/scripts/install.sh | \
-  AISTAT_VERSION=v0.1.0 AISTAT_INSTALL_DIR=/your/bin sh
+  AISTAT_VERSION=v0.1.1 AISTAT_INSTALL_DIR=/your/bin sh
 ```
 
 Release archives and checksums are also available on the [Releases page](https://github.com/arpingblue/AIStat/releases/latest).
@@ -34,7 +34,7 @@ Release archives and checksums are also available on the [Releases page](https:/
 Run `aistat` for a quick node overview:
 
 ```text
-AIStat 0.1.0 — Node Status
+AIStat 0.1.1 — Node Status
 
 Hardware
   GPUs       AVAILABLE 4 × NVIDIA L20
@@ -124,7 +124,7 @@ External commands use a fixed allowlist, timeout, output limit, and process-tree
 
 ## Scope
 
-Version `0.1.0` covers a single Linux NVIDIA node. Kubernetes, Slurm, multi-node diagnosis, monitoring, profiling, benchmarks, and automatic tuning are not included yet.
+Version `0.1` covers a single Linux NVIDIA node. Kubernetes, Slurm, multi-node diagnosis, monitoring, profiling, benchmarks, and automatic tuning are not included yet.
 
 Performance readiness may remain `UNKNOWN` when no active workload or time-series evidence exists. AIStat reports the missing evidence instead of guessing.
 

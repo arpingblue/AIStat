@@ -24,7 +24,7 @@ curl -fsSL https://raw.githubusercontent.com/arpingblue/AIStat/main/scripts/inst
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/arpingblue/AIStat/main/scripts/install.sh | \
-  AISTAT_VERSION=v0.1.0 AISTAT_INSTALL_DIR=/your/bin sh
+  AISTAT_VERSION=v0.1.1 AISTAT_INSTALL_DIR=/your/bin sh
 ```
 
 所有压缩包和校验文件也可以从 [Releases页面](https://github.com/arpingblue/AIStat/releases/latest)手动下载。
@@ -34,7 +34,7 @@ curl -fsSL https://raw.githubusercontent.com/arpingblue/AIStat/main/scripts/inst
 直接运行 `aistat`查看节点总览：
 
 ```text
-AIStat 0.1.0 — Node Status
+AIStat 0.1.1 — Node Status
 
 Hardware
   GPUs       AVAILABLE 4 × NVIDIA L20
@@ -124,7 +124,7 @@ AIStat只读运行，不会：
 
 ## 当前边界
 
-`0.1.0`检查单台Linux NVIDIA节点。目前不包含Kubernetes、Slurm、多节点诊断、长期监控、性能profiling、benchmark和自动调优。
+`0.1`系列检查单台Linux NVIDIA节点。目前不包含Kubernetes、Slurm、多节点诊断、长期监控、性能profiling、benchmark和自动调优。
 
 没有活跃工作负载或时间序列证据时，Performance Readiness可以保持 `UNKNOWN`。AIStat会解释缺少什么证据，而不是猜测结果。
 
