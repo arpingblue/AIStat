@@ -1597,7 +1597,7 @@ aistat/
 │   └── workflows/
 │
 ├── AGENTS.md
-├── CONTRIBUTING.md
+├── README.md（含贡献指南）
 ├── SECURITY.md
 ├── LICENSE
 ├── Makefile
@@ -2558,7 +2558,7 @@ internal/collector
 internal/execx
 internal/report
 AGENTS.md
-CONTRIBUTING.md
+README.md 贡献章节
 SECURITY.md
 GitHub Actions
 test framework

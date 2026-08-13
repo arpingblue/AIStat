@@ -479,7 +479,7 @@ install.sh
 checksums
 README
 SECURITY.md
-CONTRIBUTING.md
+README contribution section
 AGENTS.md
 v0.1.0 release
 ```
@@ -622,7 +622,7 @@ aistat/
 │       └── release.yml
 │
 ├── AGENTS.md
-├── CONTRIBUTING.md
+├── README.md (includes contribution guide)
 ├── SECURITY.md
 ├── LICENSE
 ├── Makefile
@@ -2795,7 +2795,7 @@ Verification
 [ ] docs/architecture.md
 [ ] docs/rules.md
 [ ] docs/security.md
-[ ] CONTRIBUTING.md
+[ ] README contribution section
 [ ] SECURITY.md
 [ ] LICENSE
 [ ] AGENTS.md

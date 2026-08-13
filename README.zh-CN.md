@@ -143,15 +143,41 @@ CGO_ENABLED=0 go build -trimpath -o aistat ./cmd/aistat
 
 ## 参与贡献
 
-欢迎提交Issue和Pull Request。
+欢迎提交Issue和Pull Request。来自真实Linux NVIDIA服务器的问题反馈尤其有价值，但分享的输出必须先完成脱敏。
 
 - **发现Bug：** 请创建 [Issue](https://github.com/arpingblue/AIStat/issues)，说明AIStat版本、系统信息、执行命令、预期行为，并提供已经脱敏的输出。
 - **提出功能建议：** 请描述实际运维问题、AIStat可以取得的证据以及最终如何验证结果。
 - **提交代码：** PR应保持目标明确、补充测试、维持只读行为；用户可见内容发生变化时同步更新中英文文档。
 
-不要公开密钥或未经处理的生产环境采集。安全漏洞请按照 [SECURITY.md](SECURITY.md)报告，不要创建公开Issue。
+### 提交Issue前
 
-修改采集器、规则、外部命令或公开JSON模型前，请阅读完整的[中文贡献指南](CONTRIBUTING.zh-CN.md)。
+请根据实际情况提供：
+
+- `aistat version`输出；
+- Linux发行版、内核、CPU架构和GPU型号；
+- 实际命令、预期行为和实际行为；
+- 最小化的输出或JSON片段；
+- Docker、内核日志或进程检查是否受到权限限制。
+
+请删除主机名、用户名、IP和MAC地址、容器ID、模型路径、Prompt、Token以及客户信息。不要上传未经检查的完整支持包。安全漏洞请按照 [SECURITY.md](SECURITY.md)报告，不要创建公开Issue。
+
+### 提交Pull Request前
+
+至少运行：
+
+```bash
+gofmt -w ./cmd ./internal
+go test ./...
+go vet ./...
+```
+
+PR应说明用户可见的问题、包含测试并避免无关修改。大型架构调整、新增外部命令、修改报告Schema或增加诊断规则前，请先创建Issue讨论。
+
+Collector修改必须保持只读和有界。新增外部命令需要固定白名单、无Shell插值的固定参数、超时和输出限制，以及命令不存在、权限不足、超时和输出损坏测试。
+
+Rule修改必须覆盖触发、通过、证据不足、不适用、边界和相关误报。缺少证据永远不能被判断为PASS。公开报告变更必须同步修改 [JSON Schema](docs/schema/report-v0.1.schema.json)和测试。
+
+提交贡献即表示你同意按照仓库的Apache License 2.0许可该贡献。
 
 ## 开源许可
 

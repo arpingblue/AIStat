@@ -143,15 +143,41 @@ CGO_ENABLED=0 go build -trimpath -o aistat ./cmd/aistat
 
 ## Contributing
 
-Issues and pull requests are welcome.
+Issues and pull requests are welcome. Reports from real Linux NVIDIA servers are especially useful when the shared output has been sanitized.
 
 - **Found a bug?** Open an [issue](https://github.com/arpingblue/AIStat/issues) with the AIStat version, system information, command, expected behavior, and sanitized output.
 - **Have an idea?** Describe the operational problem, the evidence AIStat could collect, and how the result could be verified.
 - **Want to contribute code?** Keep the pull request focused, add tests, preserve read-only behavior, and update both languages when user-facing behavior changes.
 
-Do not post secrets or raw production captures. Security vulnerabilities should follow [SECURITY.md](SECURITY.md), not a public issue.
+### Before opening an issue
 
-Read the complete [contribution guide](CONTRIBUTING.md) before changing collectors, rules, external commands, or the public JSON model.
+Include the following when applicable:
+
+- output from `aistat version`;
+- Linux distribution, kernel, architecture, and GPU model;
+- the exact command, expected behavior, and actual behavior;
+- a minimal output or JSON excerpt;
+- whether Docker, kernel logs, or process inspection were permission-restricted.
+
+Remove hostnames, usernames, IP and MAC addresses, container IDs, model paths, prompts, tokens, and customer information. Do not upload an unreviewed support bundle. Security vulnerabilities should follow [SECURITY.md](SECURITY.md), not a public issue.
+
+### Before opening a pull request
+
+Run:
+
+```bash
+gofmt -w ./cmd ./internal
+go test ./...
+go vet ./...
+```
+
+A pull request should explain the user-visible problem, include tests, and avoid unrelated changes. Large architecture changes, new external commands, report-schema changes, and new diagnostic rules should be discussed in an issue first.
+
+Collector changes must remain read-only and bounded. New external commands require a fixed allowlist entry, fixed arguments without shell interpolation, timeout and output limits, and tests for absence, denial, timeout, and malformed output.
+
+Rule changes must cover trigger, pass, missing evidence, not-applicable behavior, boundaries, and relevant false positives. Missing evidence must never become PASS. Public report changes must update the [JSON Schema](docs/schema/report-v0.1.schema.json) and matching tests.
+
+By contributing, you agree that your contribution is licensed under the repository's Apache License 2.0.
 
 ## License
 
