@@ -17,6 +17,7 @@ AIStat's first public release establishes the read-only diagnostic foundation fo
 - Added terminal-aware status colors with ANSI-free JSON and redirected output.
 - Added 25 evidence-backed diagnostic rules and a versioned JSON Schema 0.1 report.
 - Added Linux `amd64` and `arm64` release builds, checksums, provenance attestation, and a checksum-verifying installer.
+- Added a one-command, user-local installer that selects the host architecture and downloads the latest release.
 
 ### Safety
 

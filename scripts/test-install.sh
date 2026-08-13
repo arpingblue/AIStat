@@ -11,7 +11,7 @@ install_dir="$work/install"
 mkdir -p "$payload" "$fake_bin" "$install_dir"
 
 (cd "$project_root" && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o "$payload/aistat" ./cmd/aistat)
-archive="$payload/aistat_0.1.0_linux_amd64.tar.gz"
+archive="$payload/aistat_linux_amd64.tar.gz"
 tar -czf "$archive" -C "$payload" aistat
 (cd "$payload" && sha256sum "$(basename "$archive")" > checksums.txt)
 
