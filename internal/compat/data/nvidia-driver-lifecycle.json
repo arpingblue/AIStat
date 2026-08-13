@@ -1,0 +1,11 @@
+{
+  "schema_version": "0.1",
+  "dataset_version": "2026-08-13",
+  "source": "NVIDIA Data Center Driver lifecycle documentation",
+  "branches": [
+    {"branch": 470, "eol": "2024-09-01"},
+    {"branch": 525, "eol": "2024-11-01"},
+    {"branch": 535, "eol": "2026-06-30"},
+    {"branch": 550, "eol": "2025-10-01"}
+  ]
+}

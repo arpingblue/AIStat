@@ -1,0 +1,71 @@
+{
+  "schema_version": "0.1",
+  "aistat_version": "test",
+  "collected_at": "1970-01-01T00:00:01Z",
+  "profile": "general",
+  "compatibility_version": "test",
+  "readiness": {
+    "deployment": "ready",
+    "performance": "ready"
+  },
+  "summary": {
+    "pass": 0,
+    "warn": 0,
+    "fail": 0,
+    "info": 0,
+    "unknown": 0,
+    "skip": 0
+  },
+  "node": {
+    "meta": {
+      "schema_version": "0.1",
+      "tool_version": "test",
+      "collected_at": "1970-01-01T00:00:01Z",
+      "os": "linux",
+      "arch": "amd64",
+      "duration_ms": 0
+    },
+    "host": {
+      "state": "available"
+    },
+    "cpu": {
+      "state": "available"
+    },
+    "memory": {
+      "state": "available"
+    },
+    "numa": {
+      "state": "available"
+    },
+    "pci": {
+      "state": "available"
+    },
+    "gpus": {
+      "state": "available"
+    },
+    "network": {
+      "state": "available"
+    },
+    "rdma": {
+      "state": "available"
+    },
+    "storage": {
+      "state": "available"
+    },
+    "nvidia": {
+      "state": "available",
+      "xid_state": "available"
+    },
+    "containers": {
+      "state": "available",
+      "daemon_state": "not_detected"
+    },
+    "processes": {
+      "state": "available"
+    },
+    "runtimes": {
+      "state": "available"
+    }
+  },
+  "findings": []
+}

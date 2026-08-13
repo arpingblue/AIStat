@@ -1,0 +1,61 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Formatting
+        run: test -z "$(gofmt -l cmd internal)"
+      - name: Test
+        run: go test -race -coverprofile=coverage.out ./...
+      - name: Vet
+        run: go vet ./...
+      - name: Staticcheck
+        run: |
+          go install honnef.co/go/tools/cmd/staticcheck@2026.1
+          staticcheck ./...
+      - name: Linux amd64 build and CPU-only smoke
+        run: |
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o dist/aistat-linux-amd64 ./cmd/aistat
+          ./dist/aistat-linux-amd64 check --profile general --format json > "$RUNNER_TEMP/aistat-report.json"
+          python3 -m json.tool "$RUNNER_TEMP/aistat-report.json" >/dev/null
+      - name: Linux arm64 cross-build
+        run: CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -o dist/aistat-linux-arm64 ./cmd/aistat
+      - name: Shell and installer verification
+        run: |
+          sh -n scripts/install.sh scripts/sanitize-fixture.sh scripts/test-install.sh
+          sh scripts/test-install.sh
+      - name: GoReleaser snapshot
+        uses: goreleaser/goreleaser-action@v7
+        with:
+          distribution: goreleaser
+          version: '~> v2'
+          args: release --snapshot --clean
+
+  windows-logic:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Portable logic and Linux fixtures
+        run: go test ./...
+      - name: Vet
+        run: go vet ./...
+      - name: Cross-build Linux artifacts
+        shell: pwsh
+        run: .\scripts\dev.ps1 cross

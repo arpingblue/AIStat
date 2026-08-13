@@ -1,0 +1,1 @@
+VLLM fixture: selected GPU group has a strictly better visible alternative.

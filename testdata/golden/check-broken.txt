@@ -1,0 +1,17 @@
+AIStat test
+
+NVIDIA AI Node Check
+
+Deployment Readiness    NOT_READY
+Performance Readiness   READY
+
+1 blocker(s), 0 warning(s), 0 unknown
+
+FAIL TEST001 — bad
+broken
+Evidence:
+  - test.fact=true (test)
+Why: test
+Recommendation: test
+Verification:
+  - test

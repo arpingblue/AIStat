@@ -1,0 +1,8 @@
+AIStat fixture
+
+NVIDIA AI Node Check
+
+Deployment Readiness    READY
+Performance Readiness   READY
+
+0 blocker(s), 0 warning(s), 0 unknown

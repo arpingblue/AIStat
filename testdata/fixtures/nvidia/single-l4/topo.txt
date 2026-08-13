@@ -1,0 +1,2 @@
+	GPU0	CPU Affinity	NUMA Affinity
+GPU0	 X 	0-3	0

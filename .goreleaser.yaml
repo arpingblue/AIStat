@@ -1,0 +1,34 @@
+version: 2
+
+project_name: aistat
+
+builds:
+  - id: aistat
+    main: ./cmd/aistat
+    binary: aistat
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    flags:
+      - -trimpath
+    ldflags:
+      - >-
+        -s -w
+        -X github.com/arpingblue/AIStat/internal/version.Version={{.Version}}
+        -X github.com/arpingblue/AIStat/internal/version.Commit={{.Commit}}
+        -X github.com/arpingblue/AIStat/internal/version.Date={{.Date}}
+
+archives:
+  - name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    formats:
+      - tar.gz
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  use: git

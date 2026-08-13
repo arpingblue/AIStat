@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aistat.dev/schema/report-v0.1.schema.json",
+  "title": "AIStat v0.1 report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "aistat_version", "collected_at", "profile", "compatibility_version", "readiness", "summary", "node", "findings"],
+  "properties": {
+    "schema_version": {"const": "0.1"},
+    "aistat_version": {"type": "string", "minLength": 1},
+    "collected_at": {"type": "string", "format": "date-time"},
+    "profile": {"enum": ["general", "llm-inference"]},
+    "compatibility_version": {"type": "string", "minLength": 1},
+    "readiness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["deployment", "performance"],
+      "properties": {
+        "deployment": {"enum": ["ready", "not_ready", "unknown"]},
+        "performance": {"enum": ["ready", "warn", "unknown"]}
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pass", "warn", "fail", "info", "unknown", "skip"],
+      "properties": {
+        "pass": {"type": "integer", "minimum": 0},
+        "warn": {"type": "integer", "minimum": 0},
+        "fail": {"type": "integer", "minimum": 0},
+        "info": {"type": "integer", "minimum": 0},
+        "unknown": {"type": "integer", "minimum": 0},
+        "skip": {"type": "integer", "minimum": 0}
+      }
+    },
+    "node": {
+      "type": "object",
+      "required": ["meta", "host", "cpu", "memory", "numa", "pci", "gpus", "network", "rdma", "storage", "nvidia", "containers", "processes", "runtimes"],
+      "properties": {
+        "meta": {"type": "object"},
+		"host": {"$ref": "#/$defs/stateSection"},
+        "cpu": {"$ref": "#/$defs/stateSection"},
+        "memory": {"$ref": "#/$defs/stateSection"},
+        "numa": {"$ref": "#/$defs/stateSection"},
+        "pci": {"$ref": "#/$defs/stateSection"},
+        "gpus": {"$ref": "#/$defs/stateSection"},
+        "network": {"$ref": "#/$defs/stateSection"},
+        "rdma": {"$ref": "#/$defs/stateSection"},
+        "storage": {"$ref": "#/$defs/stateSection"},
+        "nvidia": {"$ref": "#/$defs/stateSection"},
+        "containers": {"$ref": "#/$defs/stateSection"},
+        "processes": {"$ref": "#/$defs/stateSection"},
+        "runtimes": {"$ref": "#/$defs/stateSection"},
+        "p2p": {"type": "array"},
+        "collectors": {"type": "array"}
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["rule_id", "title", "domain", "status", "severity", "dimension", "priority", "subject", "current_state", "why", "recommendation", "confidence", "evidence", "verification", "references"],
+        "properties": {
+          "rule_id": {"type": "string", "pattern": "^[A-Z]+[0-9]{3}$"},
+          "title": {"type": "string", "minLength": 1},
+          "domain": {"type": "string", "minLength": 1},
+          "status": {"enum": ["pass", "warn", "fail", "info", "unknown", "skip"]},
+          "severity": {"enum": ["critical", "high", "medium", "low", "info"]},
+          "dimension": {"enum": ["deployment", "performance"]},
+          "priority": {"enum": ["P0", "P1", "P2", "P3"]},
+          "subject": {"type": "object"},
+          "current_state": {"type": "string", "minLength": 1},
+          "why": {"type": "string", "minLength": 1},
+          "recommendation": {"type": "string", "minLength": 1},
+          "confidence": {"enum": ["high", "medium", "low"]},
+          "evidence": {"type": "array"},
+          "verification": {"type": "array"},
+          "references": {"type": "array"}
+        }
+      }
+    }
+  },
+  "$defs": {
+    "stateSection": {
+      "type": "object",
+      "required": ["state"],
+      "properties": {
+        "state": {"enum": ["available", "not_detected", "unsupported", "permission_denied", "timeout", "parse_error", "unknown"]}
+      }
+    }
+  }
+}

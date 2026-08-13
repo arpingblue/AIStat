@@ -1,0 +1,10 @@
+{
+  "schema_version": "0.1",
+  "dataset_version": "2026-08-13",
+  "source": "NVIDIA CUDA Compatibility documentation",
+  "minimum_driver_by_cuda_major": {
+    "11": "450.80.02",
+    "12": "525.60.13",
+    "13": "580.65.06"
+  }
+}
