@@ -39,9 +39,31 @@ func Validate(value model.Report) error {
 		return fmt.Errorf("invalid performance readiness %q", value.Readiness.Performance)
 	}
 	states := []model.FactState{value.Node.Host.State, value.Node.CPU.State, value.Node.Memory.State, value.Node.NUMA.State, value.Node.PCI.State, value.Node.GPUs.State, value.Node.Network.State, value.Node.RDMA.State, value.Node.Storage.State, value.Node.NVIDIA.State, value.Node.NVIDIA.XIDState, value.Node.Containers.State, value.Node.Containers.DaemonState, value.Node.Processes.State, value.Node.Runtimes.State}
+	if value.Node.Containers.ClientState != "" {
+		states = append(states, value.Node.Containers.ClientState)
+	}
+	for _, state := range []model.FactState{
+		value.Node.Containers.NVIDIARuntimeState,
+		value.Node.Containers.ToolkitState,
+		value.Node.Containers.ToolkitPackageState,
+		value.Node.Containers.ToolkitCLIState,
+		value.Node.Containers.CDIState,
+		value.Node.Containers.GPUContainerState,
+	} {
+		if state != "" {
+			states = append(states, state)
+		}
+	}
 	for _, state := range states {
 		if !validState(state) {
 			return fmt.Errorf("invalid fact state %q", state)
+		}
+	}
+	for _, product := range value.Node.Runtimes.Products {
+		for _, state := range []model.FactState{product.InstallationState, product.ExecutionState, product.HostState, product.ContainerState} {
+			if !validState(state) {
+				return fmt.Errorf("invalid runtime product state %q", state)
+			}
 		}
 	}
 	for _, finding := range value.Findings {

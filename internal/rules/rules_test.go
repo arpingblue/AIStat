@@ -155,6 +155,8 @@ func contextsFor(id string) (ruleContexts, bool) {
 		a.Profile.DockerRequired = true
 		a.Profile.GPURequired = true
 		a.Snapshot.Containers.NVIDIARuntime = false
+		a.Snapshot.Containers.GPUContainerState = model.StateNotDetected
+		a.Snapshot.Containers.ToolkitState = model.StateNotDetected
 		b.Profile.DockerRequired = true
 		b.Profile.GPURequired = true
 		c.Profile.DockerRequired = true

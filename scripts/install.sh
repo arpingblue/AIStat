@@ -1,11 +1,7 @@
 #!/usr/bin/env sh
 set -eu
 
-version="${AISTAT_VERSION:-}"
-if [ -z "$version" ]; then
-  echo "Set AISTAT_VERSION to a release such as v0.1.0." >&2
-  exit 2
-fi
+version="${AISTAT_VERSION:-v0.1.0}"
 
 case "$(uname -m)" in
   x86_64|amd64) arch=amd64 ;;

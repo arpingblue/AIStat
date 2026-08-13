@@ -2,6 +2,8 @@ package process
 
 import (
 	"context"
+	"errors"
+	"io/fs"
 	"path"
 	"strconv"
 	"strings"
@@ -46,6 +48,7 @@ func (c Collector) Collect(_ context.Context, env collector.Env) collector.Resul
 		return failure(c.ID(), err)
 	}
 	processes := []model.Process{}
+	permissionDenied := false
 	gpuProcesses := map[int][]string{}
 	if stack, ok := collector.DecodeFact[model.NVIDIAStack](env, "nvidia"); ok {
 		for _, item := range stack.ComputeProcesses {
@@ -60,13 +63,15 @@ func (c Collector) Collect(_ context.Context, env collector.Env) collector.Resul
 		base := "/proc/" + entry.Name()
 		cmdRaw, err := env.FileSystem.ReadFile(base + "/cmdline")
 		if err != nil {
+			permissionDenied = permissionDenied || errors.Is(err, fs.ErrPermission) || strings.Contains(strings.ToLower(err.Error()), "not permitted")
 			continue
 		}
 		args := splitNUL(cmdRaw)
-		if len(args) == 0 || !isAI(args) {
+		kind := detectRuntimeKind(args)
+		if len(args) == 0 || kind == "" {
 			continue
 		}
-		process := model.Process{PID: pid, Executable: path.Base(args[0]), Command: strings.Join(redactArgs(args), " "), AllowedArgs: parseAllowedArgs(args), AllowedEnv: map[string]string{}}
+		process := model.Process{PID: pid, RuntimeKind: kind, Executable: path.Base(args[0]), Command: strings.Join(redactArgs(args), " "), AllowedArgs: parseAllowedArgs(args), AllowedEnv: map[string]string{}}
 		process.GPUUUIDs = append(process.GPUUUIDs, gpuProcesses[pid]...)
 		if status, err := env.FileSystem.ReadFile(base + "/status"); err == nil {
 			process.CPUSet = parseStatusList(string(status), "Cpus_allowed_list")
@@ -81,8 +86,11 @@ func (c Collector) Collect(_ context.Context, env collector.Env) collector.Resul
 		processes = append(processes, process)
 	}
 	state := model.StateAvailable
+	if permissionDenied {
+		state = model.StatePermissionDenied
+	}
 	value := model.ProcessState{State: state, Processes: processes}
-	return collector.Result{Collector: c.ID(), State: state, Facts: []model.Fact{model.NewFact("processes", state, value, model.ConfidenceMedium, model.SourceRef{Collector: "process", Source: "/proc/*/{cmdline,status,environ,cgroup}"})}}
+	return collector.Result{Collector: c.ID(), State: state, Facts: []model.Fact{model.NewFact("processes", model.StateAvailable, value, model.ConfidenceMedium, model.SourceRef{Collector: "process", Source: "/proc/*/{cmdline,status,environ,cgroup}"})}}
 }
 func ReadAllowedEnv(fileSystem fsx.FileSystem, pid int, allowed map[string]struct{}) (map[string]string, error) {
 	raw, err := fileSystem.ReadFile("/proc/" + strconv.Itoa(pid) + "/environ")
@@ -111,9 +119,31 @@ func splitNUL(raw []byte) []string {
 	}
 	return parts
 }
-func isAI(args []string) bool {
-	joined := strings.ToLower(strings.Join(args, " "))
-	return strings.Contains(joined, "vllm") || strings.Contains(joined, "sglang") || strings.Contains(joined, "torchrun")
+func detectRuntimeKind(args []string) string {
+	for index, raw := range args {
+		token := strings.ToLower(strings.TrimSpace(raw))
+		base := strings.TrimSuffix(path.Base(token), ".py")
+		switch {
+		case base == "vllm" || base == "vllm.entrypoints" || strings.HasPrefix(token, "vllm.") || strings.Contains(token, "/vllm/"):
+			return "vllm"
+		case base == "sglang" || base == "sglang.launch_server" || strings.HasPrefix(token, "sglang.") || strings.Contains(token, "/sglang/"):
+			return "sglang"
+		case base == "torchrun" || token == "torch.distributed.run" || strings.HasSuffix(token, "/torch/distributed/run.py"):
+			return "pytorch"
+		case token == "-m" && index+1 < len(args):
+			module := strings.ToLower(args[index+1])
+			if module == "vllm" || strings.HasPrefix(module, "vllm.") {
+				return "vllm"
+			}
+			if module == "sglang" || strings.HasPrefix(module, "sglang.") {
+				return "sglang"
+			}
+			if module == "torch.distributed.run" {
+				return "pytorch"
+			}
+		}
+	}
+	return ""
 }
 func redactArgs(args []string) []string {
 	result := []string{}

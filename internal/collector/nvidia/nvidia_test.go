@@ -149,6 +149,31 @@ func TestParseTopologyConnectionsAndAffinity(t *testing.T) {
 	}
 }
 
+func TestParseTopologyStripsANSIHeader(t *testing.T) {
+	gpus := []model.GPU{{Index: 0, UUID: "GPU-0"}, {Index: 1, UUID: "GPU-1"}, {Index: 2, UUID: "GPU-2"}, {Index: 3, UUID: "GPU-3"}}
+	raw := "\t\x1b[4mGPU0\tGPU1\tGPU2\tGPU3\tCPU Affinity\tNUMA Affinity\x1b[0m\n" +
+		"GPU0\tX\tNODE\tSYS\tSYS\t0,2,4,6\t0\n" +
+		"GPU1\tNODE\tX\tSYS\tSYS\t0,2,4,6\t0\n" +
+		"GPU2\tSYS\tSYS\tX\tNODE\t1,3,5,7\t1\n" +
+		"GPU3\tSYS\tSYS\tNODE\tX\t1,3,5,7\t1\n"
+	links, connections := ParseTopologyMatrix(raw, gpus)
+	if len(links) != 6 {
+		t.Fatalf("expected six GPU pairs, got %#v", links)
+	}
+	for _, connection := range connections {
+		if strings.Contains(connection.To, "\x1b") || connection.To == "GPU0" {
+			t.Fatalf("ANSI header leaked into connection: %#v", connection)
+		}
+	}
+}
+
+func TestCommandStateOperationNotPermitted(t *testing.T) {
+	state := commandState(execx.Result{Stderr: "dmesg: read kernel buffer failed: Operation not permitted"}, os.ErrPermission)
+	if state != model.StatePermissionDenied {
+		t.Fatalf("state=%s", state)
+	}
+}
+
 func intStrings(values []int) []string {
 	result := make([]string, len(values))
 	for i, value := range values {

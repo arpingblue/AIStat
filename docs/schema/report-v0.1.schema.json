@@ -48,10 +48,11 @@
         "rdma": {"$ref": "#/$defs/stateSection"},
         "storage": {"$ref": "#/$defs/stateSection"},
         "nvidia": {"$ref": "#/$defs/stateSection"},
-        "containers": {"$ref": "#/$defs/stateSection"},
+        "containers": {"$ref": "#/$defs/containerState"},
         "processes": {"$ref": "#/$defs/stateSection"},
-        "runtimes": {"$ref": "#/$defs/stateSection"},
-        "p2p": {"type": "array"},
+        "runtimes": {"$ref": "#/$defs/runtimeState"},
+		"p2p": {"type": "array"},
+		"topology": {"type": "array"},
         "collectors": {"type": "array"}
       }
     },
@@ -81,12 +82,72 @@
     }
   },
   "$defs": {
+	"factState": {
+	  "enum": ["available", "not_detected", "unsupported", "permission_denied", "timeout", "parse_error", "unknown"]
+	},
     "stateSection": {
       "type": "object",
       "required": ["state"],
       "properties": {
-        "state": {"enum": ["available", "not_detected", "unsupported", "permission_denied", "timeout", "parse_error", "unknown"]}
+		"state": {"$ref": "#/$defs/factState"}
       }
-    }
+	},
+	"containerState": {
+	  "type": "object",
+	  "required": ["state", "daemon_state"],
+	  "properties": {
+		"state": {"$ref": "#/$defs/factState"},
+		"client_state": {"$ref": "#/$defs/factState"},
+		"daemon_state": {"$ref": "#/$defs/factState"},
+		"nvidia_runtime_state": {"$ref": "#/$defs/factState"},
+		"toolkit_state": {"$ref": "#/$defs/factState"},
+		"toolkit_package_state": {"$ref": "#/$defs/factState"},
+		"toolkit_cli_state": {"$ref": "#/$defs/factState"},
+		"cdi_state": {"$ref": "#/$defs/factState"},
+		"gpu_container_state": {"$ref": "#/$defs/factState"},
+		"toolkit_packages": {"type": "array", "items": {"type": "string"}},
+		"cdi_specs": {"type": "array", "items": {"type": "string"}},
+		"gpu_container_modes": {"type": "array", "items": {"type": "string"}},
+		"toolkit_evidence": {"type": "array", "items": {"type": "string"}}
+	  }
+	},
+	"runtimeState": {
+	  "type": "object",
+	  "required": ["state"],
+	  "properties": {
+		"state": {"$ref": "#/$defs/factState"},
+		"instances": {"type": "array", "items": {"type": "object"}},
+		"products": {"type": "array", "items": {"$ref": "#/$defs/runtimeProduct"}}
+	  }
+	},
+	"runtimeProduct": {
+	  "type": "object",
+	  "required": ["name", "installation_state", "execution_state", "host_state", "container_state", "instance_count"],
+	  "properties": {
+		"name": {"enum": ["pytorch", "vllm", "sglang"]},
+		"installation_state": {"$ref": "#/$defs/factState"},
+		"installation_reason": {"type": "string"},
+		"execution_state": {"$ref": "#/$defs/factState"},
+		"execution_reason": {"type": "string"},
+		"host_state": {"$ref": "#/$defs/factState"},
+		"container_state": {"$ref": "#/$defs/factState"},
+		"instance_count": {"type": "integer", "minimum": 0},
+		"installations": {"type": "array", "items": {"$ref": "#/$defs/runtimeInstallation"}}
+	  }
+	},
+	"runtimeInstallation": {
+	  "type": "object",
+	  "required": ["product", "path", "scope", "source", "confidence"],
+	  "properties": {
+		"product": {"enum": ["pytorch", "vllm", "sglang"]},
+		"version": {"type": "string"},
+		"path": {"type": "string", "minLength": 1},
+		"python_environment": {"type": "string"},
+		"scope": {"enum": ["host", "container"]},
+		"container_id": {"type": "string"},
+		"source": {"type": "string", "minLength": 1},
+		"confidence": {"enum": ["high", "medium", "low"]}
+	  }
+	}
   }
 }

@@ -93,11 +93,11 @@ The probe uses fixed built-in code, an isolated interpreter invocation, a minima
 | ID | Dimension / priority | Trigger | Result |
 |---|---|---|---|
 | `CTR001` | deployment / P0 | A detected workflow requires Docker and the daemon is confirmed unavailable | `fail` |
-| `CTR002` | deployment / P0 | A confirmed Docker GPU workflow lacks NVIDIA Container Toolkit or Docker runtime configuration | `fail` |
+| `CTR002` | deployment / P0 | A required Docker GPU workflow has conclusive evidence that Toolkit packages/components are absent, or Toolkit installation is confirmed but neither NVIDIA runtime nor CDI is configured | `fail` |
 | `CTR003` | deployment / P0 | A container expects GPU access but has zero effective visible GPUs | `fail` |
 | `CTR004` | deployment / P0 | A multi-process/multi-GPU NCCL container uses default or tiny (`<=64 MiB`) `/dev/shm` | `fail` |
 
-Docker socket permission denial produces `unknown`; it is not treated as an unavailable daemon. AIStat never starts Docker or edits daemon/runtime configuration.
+Docker socket permission denial produces `unknown`; it is not treated as an unavailable daemon. Toolkit absence requires consistent results from package, component-command, Docker-runtime, and CDI probes. A permission, timeout, parse, or coverage gap cannot produce “not installed.” AIStat never starts Docker, pulls a validation image, or edits daemon/runtime configuration.
 
 ## vLLM
 

@@ -3,6 +3,7 @@ package python
 import (
 	"context"
 	"encoding/json"
+	"path"
 	"strconv"
 	"strings"
 	"time"
@@ -43,10 +44,20 @@ func (c Collector) Collect(ctx context.Context, env collector.Env) collector.Res
 	if env.Platform != "linux" && !env.Fixture {
 		return collector.Unsupported(c.ID(), "runtimes")
 	}
-	processes, _ := collector.DecodeFact[model.ProcessState](env, "processes")
-	gpus, _ := collector.DecodeFact[model.GPUState](env, "gpus")
-	containers, _ := collector.DecodeFact[model.ContainerState](env, "containers")
+	processes, processOK := collector.DecodeFact[model.ProcessState](env, "processes")
+	if !processOK {
+		processes.State = sourceState(env, "processes")
+	}
+	gpus, gpuOK := collector.DecodeFact[model.GPUState](env, "gpus")
+	if !gpuOK {
+		gpus.State = sourceState(env, "gpus")
+	}
+	containers, containerOK := collector.DecodeFact[model.ContainerState](env, "containers")
+	if !containerOK {
+		containers.State, containers.DaemonState = sourceState(env, "containers"), sourceState(env, "containers")
+	}
 	instances := resolveProcesses(processes, gpus, containers)
+	scan := discoverInstallations(ctx, env.FileSystem, env.HomeDir, env.Environment, processes, containers)
 	for i := range instances {
 		if !strings.HasPrefix(instances[i].Executable, "python") {
 			continue
@@ -54,9 +65,11 @@ func (c Collector) Collect(ctx context.Context, env collector.Env) collector.Res
 		name := instances[i].Executable
 		if env.FileSystem != nil && instances[i].PID > 0 {
 			name = "/proc/" + strconv.Itoa(instances[i].PID) + "/exe"
-			if _, err := env.FileSystem.Readlink(name); err != nil {
+			target, err := env.FileSystem.Readlink(name)
+			if err != nil {
 				continue
 			}
+			instances[i].PythonEnvironment = path.Dir(path.Dir(target))
 		}
 		dir := ""
 		if env.Platform == "linux" {
@@ -70,22 +83,153 @@ func (c Collector) Collect(ctx context.Context, env collector.Env) collector.Res
 		if json.Unmarshal([]byte(result.Stdout), &parsed) != nil || parsed.ProbeError != "" {
 			continue
 		}
-		instances[i].Version = parsed.Version
+		instances[i].PyTorchVersion = parsed.Version
 		instances[i].PythonVersion = parsed.PythonVersion
 		instances[i].CUDAAvailable = parsed.CUDAAvailable
 		instances[i].CUDAVersion = parsed.CUDAVersion
 		instances[i].GPUCount = parsed.GPUCount
 	}
+	applyRuntimeVersions(instances, scan.Installations)
+	products := buildProducts(instances, scan, processes, containers)
 	state := model.StateAvailable
-	if len(instances) == 0 {
-		state = model.StateNotDetected
+	if len(instances) == 0 && len(scan.Installations) == 0 {
+		switch {
+		case scan.HostState == model.StatePermissionDenied || scan.ContainerState == model.StatePermissionDenied || processes.State == model.StatePermissionDenied:
+			state = model.StatePermissionDenied
+		case scan.HostState == model.StateUnknown || scan.ContainerState == model.StateUnknown:
+			state = model.StateUnknown
+		default:
+			state = model.StateNotDetected
+		}
 	}
-	value := model.RuntimeState{State: state, Instances: instances}
-	fact := model.Fact{Key: "runtimes", State: state, Confidence: model.ConfidenceMedium, Sources: []model.SourceRef{{Collector: "runtime", Source: "sanitized process facts and fixed Python probe"}}}
-	if state == model.StateAvailable {
-		fact = model.NewFact("runtimes", model.StateAvailable, value, model.ConfidenceMedium, fact.Sources...)
-	}
+	value := model.RuntimeState{State: state, Instances: instances, Products: products}
+	fact := model.NewFact("runtimes", model.StateAvailable, value, model.ConfidenceMedium, model.SourceRef{Collector: "runtime", Source: "sanitized process facts, bounded package metadata scan, and fixed Python probe"})
 	return collector.Result{Collector: c.ID(), State: state, Facts: []model.Fact{fact}}
+}
+
+func sourceState(env collector.Env, key string) model.FactState {
+	if fact, ok := env.Facts[key]; ok && fact.State != "" {
+		return fact.State
+	}
+	return model.StateUnknown
+}
+
+func buildProducts(instances []model.RuntimeInstance, scan installationScan, processes model.ProcessState, containers model.ContainerState) []model.RuntimeProduct {
+	products := make([]model.RuntimeProduct, 0, 3)
+	for _, name := range []string{"pytorch", "vllm", "sglang"} {
+		product := model.RuntimeProduct{Name: name, HostState: scan.HostState, ContainerState: scan.ContainerState, ExecutionState: model.StateNotDetected}
+		for _, installation := range scan.Installations {
+			if installation.Product != name {
+				continue
+			}
+			product.Installations = append(product.Installations, installation)
+			if installation.Scope == "container" {
+				if product.ContainerState == model.StateNotDetected {
+					product.ContainerState = model.StateAvailable
+				}
+			} else {
+				if product.HostState == model.StateNotDetected {
+					product.HostState = model.StateAvailable
+				}
+			}
+		}
+		for _, instance := range instances {
+			if instance.Kind == name {
+				product.InstanceCount++
+				product.ExecutionState = model.StateAvailable
+			}
+		}
+		if product.InstanceCount > 0 && len(product.Installations) == 0 {
+			for _, instance := range instances {
+				if instance.Kind != name {
+					continue
+				}
+				scope, location := "host", instance.PythonEnvironment
+				if location == "" {
+					location = instance.Executable
+				}
+				if instance.ContainerID != "" {
+					scope = "container"
+				}
+				product.Installations = append(product.Installations, model.RuntimeInstallation{Product: name, Version: instance.Version, Path: location, PythonEnvironment: instance.PythonEnvironment, Scope: scope, ContainerID: instance.ContainerID, Source: "active runtime process", Confidence: model.ConfidenceMedium})
+				if scope == "host" && product.HostState == model.StateNotDetected {
+					product.HostState = model.StateAvailable
+				}
+				if scope == "container" && product.ContainerState == model.StateNotDetected {
+					product.ContainerState = model.StateAvailable
+				}
+				break
+			}
+		}
+		if len(product.Installations) > 0 || product.InstanceCount > 0 {
+			product.InstallationState = model.StateAvailable
+			product.InstallationReason = strconv.Itoa(len(product.Installations)) + " installation record(s) confirmed"
+		} else if product.HostState == model.StatePermissionDenied || product.ContainerState == model.StatePermissionDenied {
+			product.InstallationState = model.StatePermissionDenied
+			product.InstallationReason = joinReasons(scan.HostReason, scan.ContainerReason)
+		} else if product.HostState == model.StateUnknown || product.ContainerState == model.StateUnknown {
+			product.InstallationState = model.StateUnknown
+			product.InstallationReason = joinReasons(scan.HostReason, scan.ContainerReason)
+		} else {
+			product.InstallationState = model.StateNotDetected
+			product.InstallationReason = "selected host and running-container package paths were fully inspected; no matching metadata or active instance was found"
+		}
+		containerVisibilityUnknown := containers.DaemonState == model.StatePermissionDenied || containers.DaemonState == model.StateUnknown || containers.DaemonState == model.StateTimeout || containers.DaemonState == model.StateParseError
+		processVisibilityUnknown := processes.State == model.StatePermissionDenied || processes.State == model.StateUnknown || processes.State == model.StateTimeout || processes.State == model.StateParseError
+		if product.ExecutionState == model.StateNotDetected && (containerVisibilityUnknown || processVisibilityUnknown) {
+			product.ExecutionState = model.StateUnknown
+			product.ExecutionReason = "process or running-container visibility is incomplete; absence was not inferred"
+		} else if product.ExecutionState == model.StateNotDetected {
+			product.ExecutionReason = "process and running-container inventory was inspected; no active instance was found"
+		} else {
+			product.ExecutionReason = strconv.Itoa(product.InstanceCount) + " active instance(s) confirmed"
+		}
+		products = append(products, product)
+	}
+	return products
+}
+
+func joinReasons(values ...string) string {
+	result := []string{}
+	seen := map[string]bool{}
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value != "" && !seen[value] {
+			seen[value] = true
+			result = append(result, value)
+		}
+	}
+	return strings.Join(result, "; ")
+}
+
+func applyRuntimeVersions(instances []model.RuntimeInstance, installations []model.RuntimeInstallation) {
+	for index := range instances {
+		matches := []model.RuntimeInstallation{}
+		for _, installation := range installations {
+			if installation.Product != instances[index].Kind {
+				continue
+			}
+			if instances[index].ContainerID != "" {
+				if installation.ContainerID == instances[index].ContainerID || strings.HasPrefix(installation.ContainerID, instances[index].ContainerID) || strings.HasPrefix(instances[index].ContainerID, installation.ContainerID) {
+					matches = append(matches, installation)
+				}
+			} else if installation.Scope == "host" {
+				matches = append(matches, installation)
+			}
+		}
+		for _, installation := range matches {
+			if instances[index].PythonEnvironment != "" && installation.PythonEnvironment == instances[index].PythonEnvironment {
+				instances[index].Version = installation.Version
+				break
+			}
+		}
+		if instances[index].Version == "" && len(matches) == 1 {
+			instances[index].Version = matches[0].Version
+		}
+		if instances[index].Kind == "pytorch" && instances[index].Version == "" {
+			instances[index].Version = instances[index].PyTorchVersion
+		}
+	}
 }
 func probeEnvironment(runtime model.RuntimeInstance) []string {
 	result := []string{}
@@ -97,15 +241,8 @@ func probeEnvironment(runtime model.RuntimeInstance) []string {
 func resolveProcesses(processes model.ProcessState, gpus model.GPUState, containers model.ContainerState) []model.RuntimeInstance {
 	out := []model.RuntimeInstance{}
 	for _, process := range processes.Processes {
-		joined := strings.ToLower(process.Executable + " " + process.Command)
-		kind := ""
-		if strings.Contains(joined, "vllm") {
-			kind = "vllm"
-		} else if strings.Contains(joined, "sglang") {
-			kind = "sglang"
-		} else if strings.Contains(joined, "torchrun") {
-			kind = "pytorch"
-		} else {
+		kind := process.RuntimeKind
+		if kind == "" {
 			continue
 		}
 		instance := model.RuntimeInstance{Kind: kind, PID: process.PID, ContainerID: process.ContainerID, Executable: process.Executable, CPUSet: process.CPUSet, NUMAMems: process.NUMAMems, Details: map[string]string{}}

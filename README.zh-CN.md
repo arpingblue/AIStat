@@ -1,174 +1,209 @@
-# AIStat
+<div align="center">
+  <img src="docs/assets/aistat-banner.svg" alt="AIStat — NVIDIA AI Infra 诊断工具" width="100%">
 
-[English](README.md) | [简体中文](README.zh-CN.md)
+  <p><strong>一条命令，看懂一台陌生的 NVIDIA 服务器。</strong></p>
+  <p>面向大模型部署与高性能推理的只读检查、诊断和优化建议工具。</p>
 
-**面向大模型部署与高性能推理的 AI Infra 检查、诊断与优化工具。**
+  <p>
+    <a href="https://github.com/arpingblue/AIStat/releases/latest"><img alt="Release" src="https://img.shields.io/github/v/release/arpingblue/AIStat?style=flat-square&color=28c780"></a>
+    <a href="https://github.com/arpingblue/AIStat/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/arpingblue/AIStat/ci.yml?branch=main&style=flat-square&label=CI"></a>
+    <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-blue?style=flat-square"></a>
+    <img alt="Linux" src="https://img.shields.io/badge/Linux-amd64%20%7C%20arm64-f0b90b?style=flat-square&logo=linux&logoColor=black">
+    <img alt="NVIDIA" src="https://img.shields.io/badge/NVIDIA-GPU-76B900?style=flat-square&logo=nvidia&logoColor=white">
+  </p>
 
-AIStat 用于统一分析 Linux NVIDIA 节点的硬件拓扑、CUDA 软件栈、容器和推理运行时，发现大模型部署中的阻塞项与性能瓶颈，解释问题背后的证据，并给出工程师能够验证的优化建议。
+  <p><a href="README.md">English</a> · <a href="#安装">安装</a> · <a href="#命令">命令</a> · <a href="docs/architecture.md">架构</a> · <a href="docs/rules.md">规则</a></p>
+</div>
 
-AIStat 的最终目标不是再做一个 GPU 信息查询命令，而是成为 GPU 服务器的大模型部署与推理优化系统：先理解节点每一层的真实状态，再诊断跨层问题、制定优化方案，并验证调整是否真正改善了推理工作负载。
+---
 
-> **看懂节点，诊断全栈，优化推理链路。**
+AIStat 是一个面向 Linux NVIDIA 节点的 AI Infra 检查与诊断工具。它把硬件拓扑、CUDA 软件栈、容器和推理运行时连接到同一份运维报告里，让部署阻塞与性能风险在变成事故之前就能被看到。
 
-## 项目状态
-
-AIStat 正在准备 `v0.1.0`：
-
-- Windows 可移植逻辑测试和 Linux fixture 测试已通过。
-- Ubuntu CPU-only GitHub Actions、race 测试、静态分析、发布交叉构建、安装器模拟和 GoReleaser snapshot 已通过。
-- 发布 `v0.1.0` 前仍需至少完成一次真实 NVIDIA Linux 集成验证。
-- 当前尚未发布稳定版本标签。
-
-准确的验证证据和剩余发布门槛见 [验证状态](docs/validation.md)。
-
-## 产品愿景
+它不是 `nvidia-smi` 的又一层包装。AIStat 当前版本是一个只读基础层，最终目标是把 GPU 服务器上的事实转化为一套可验证的大模型部署与推理优化工作流。
 
 ```text
-检查 -> 建模 -> 诊断 -> 建议 -> 验证 -> 优化
+检查  →  建模  →  诊断  →  建议  →  验证  →  优化
 ```
 
-AIStat 将围绕一条持续演进的优化闭环建设：
+## 看到整台节点，而不是一堆查询命令
 
-1. **检查：**从硬件、Linux、NVIDIA、容器和推理运行时采集可信事实。
-2. **建模：**把 CPU、NUMA、PCIe、GPU、NIC/RDMA、CUDA、容器和进程连接成统一的拓扑感知节点模型。
-3. **诊断：**发现部署阻塞、版本兼容问题、资源放置错误和性能瓶颈。
-4. **建议：**依据事实和运行上下文生成优化方案，而不是输出泛化的“调优最佳实践”。
-5. **验证：**对比调整前后的关键事实与工作负载结果，确认优化是否有效。
-6. **优化：**逐步发展为面向大模型推理 GPU 服务器的可控、可审计优化工作流。
+SSH 登录服务器后，直接运行 `aistat`：
 
-当前 `v0.1` 是这套长期能力的只读基础层，重点是节点查询、统一建模、拓扑关系、运行时上下文和保守诊断；它目前**不宣称已经具备自动调优或自主修改主机的能力**。
+```text
+AIStat 0.1.0 — Node Status
 
-## 当前 v0.1 基础能力
+Hardware
+  GPUs       AVAILABLE 4 × NVIDIA L20
+  CPU        AVAILABLE 2 sockets, 96 cores, 192 logical
+  Memory     AVAILABLE 1007.4 GiB
+  NUMA       AVAILABLE 2 nodes
 
-| 层级 | 检查范围 |
+NVIDIA Stack
+  Driver     PASS      580.159.03
+  CUDA       AVAILABLE driver capability 13.0; selected toolkit 13.0
+  Xid log    PERMISSION DENIED kernel log could not be fully inspected
+
+Containers
+  Client     AVAILABLE docker 29.5.2
+  Daemon     AVAILABLE 29.5.2
+  NVIDIA CTK AVAILABLE 1.19.0
+
+AI Runtimes
+  PyTorch    installed=AVAILABLE running=NOT DETECTED instances=0
+  vLLM       installed=AVAILABLE running=NOT DETECTED instances=0
+  SGLang     installed=NOT DETECTED running=NOT DETECTED instances=0
+
+Readiness
+  Deployment  READY
+  Performance UNKNOWN — runtime workload evidence is not available
+```
+
+AIStat会保守地描述结果：查不到就是查不到，权限不足就是权限不足，绝不会把缺失证据伪装成PASS。
+
+## AIStat把哪些东西连接起来
+
+| 层级 | 检查内容 |
 |---|---|
-| 主机 | OS、内核、架构、CPU 拓扑/缓存/频率、内存、HugePages、NUMA |
-| I/O 拓扑 | PCIe 层级和链路、GPU 到 NUMA、GPU 到 GPU、GPU 到 NIC/RDMA、存储 |
-| NVIDIA 软件栈 | GPU 清单与健康、Driver、Driver 支持的 CUDA、已安装 CUDA Toolkit、NCCL、Xid 事件 |
-| 容器 | Docker、NVIDIA Container Toolkit、cgroup/cpuset/内存、共享内存、GPU 可见性 |
-| AI Runtime | 进程亲和性、PyTorch CUDA 探针、vLLM 和 SGLang 的资源与并行配置 |
-| 工程诊断 | 部署就绪性、性能就绪性及 25 条基于证据的规则 |
+| **硬件** | CPU、内存、NUMA、PCIe、GPU、NIC/RDMA、存储 |
+| **NVIDIA软件栈** | 驱动、CUDA能力与Toolkit、NCCL、Xid可见性 |
+| **容器** | Docker客户端/daemon、NVIDIA Container Toolkit、runtime/CDI、GPU请求 |
+| **AI运行时** | PyTorch、vLLM、SGLang安装位置和活跃进程上下文 |
+| **拓扑** | GPU↔GPU P2P、GPU↔NUMA、GPU↔NIC/RDMA位置关系 |
+| **诊断** | 部署就绪度、性能就绪度、25条基于证据的规则 |
 
-冻结的 25 条规则见 [规则目录](docs/rules.md)。
+它主要回答这些问题：
 
-## 支持范围
+- 这台机器现在能不能部署GPU推理服务？
+- 驱动、CUDA和运行时是否能够正确配合？
+- Docker是没安装、daemon没启动，还是当前用户没有权限？
+- NVIDIA Container Toolkit是否安装并配置完成？
+- PyTorch、vLLM、SGLang安装在哪里，当前有没有运行？
+- GPU和网卡是否跨NUMA放置？
+- 哪些问题已经确认，哪些只是检查盲区？
 
-- Linux `amd64` 和 `arm64`
-- NVIDIA GPU
-- Docker 与 NVIDIA Container Toolkit
-- PyTorch、vLLM、SGLang 的 best-effort 发现
-- 单节点检查
-- 普通用户、只读运行
+## 安装
 
-Kubernetes、Slurm、多节点清单、AMD/Intel 加速器、长期监控、性能 profiling、自动调优、主机修改和 benchmark 执行均不属于 v0.1。
+### 只安装到当前用户
 
-## 从源码构建
+不需要root。安装器会验证Release校验和，只写入 `~/.local/bin`：
 
-项目固定使用 Go 1.26.5 工具链。
+```bash
+mkdir -p "$HOME/.local/bin"
+curl -fsSL https://raw.githubusercontent.com/arpingblue/AIStat/v0.1.0/scripts/install.sh | \
+  AISTAT_VERSION=v0.1.0 AISTAT_INSTALL_DIR="$HOME/.local/bin" sh
+export PATH="$HOME/.local/bin:$PATH"
+aistat version
+```
+
+如果重新登录后找不到命令，把路径永久写入Shell配置：
+
+```bash
+printf '\nexport PATH="$HOME/.local/bin:$PATH"\n' >> "$HOME/.bashrc"
+```
+
+### 手动安装
+
+前往[最新Release](https://github.com/arpingblue/AIStat/releases/latest)，下载 `linux-amd64` 或 `linux-arm64` 压缩包，用 `checksums.txt` 校验后解压，把 `aistat` 放到 `PATH`中的目录即可。
+
+AIStat是一个静态链接的单二进制程序。正常检查不访问网络、不安装软件包、不启动服务，也不修改服务器配置。
+
+## 命令
+
+| 命令 | 用途 |
+|---|---|
+| `aistat` / `aistat status` | 运维总览和首要处理建议 |
+| `aistat check` | 详细Finding、证据、影响、建议与验证方法 |
+| `aistat info` | 节点硬件资产清单 |
+| `aistat stack` | NVIDIA、CUDA、Docker和Container Toolkit状态 |
+| `aistat runtime` | PyTorch、vLLM、SGLang安装与运行实例 |
+| `aistat topology` | NUMA/GPU/NIC紧凑拓扑树和GPU P2P矩阵 |
+| `aistat explain RULE_ID` | 解释一条诊断规则 |
+| `aistat version` | 构建版本、Commit和时间 |
+
+常用示例：
+
+```bash
+# 快速查看当前节点
+aistat
+
+# 保存完整JSON报告
+aistat check --format json > aistat-report.json
+
+# 详细诊断，WARN也让CI失败
+aistat check --profile llm-inference --fail-on warn
+
+# 查看GPU与物理网卡/RDMA的亲和性
+aistat topology --view gpu-nic
+
+# 解释一条规则
+aistat explain CTR002
+```
+
+颜色只会在交互终端自动启用。JSON、重定向输出、`--no-color` 和 `NO_COLOR` 都不会包含ANSI控制字符。
+
+## 为可靠诊断而设计
+
+**先有证据，再下结论。** 每项事实区分 `available`、`not_detected`、`unsupported`、`permission_denied`、`timeout`、`parse_error`和 `unknown`，检查缺口不会被隐藏。
+
+**默认只读。** AIStat不会调整sysctl、修改驱动、把用户加入Docker组、启动容器、执行benchmark或写入配置。
+
+**所有采集都有边界。** 外部命令使用固定白名单，不调用Shell，并具有超时、输出限制和进程树清理。
+
+**发现运行时，但不执行运行时。** 安装扫描只读取有界的软件包元数据，不会 `import vllm`、扫描其他用户HOME、调用 `docker exec` 或启动工作负载。
+
+**只有一份标准报告。** 人类界面都来自同一个版本化JSON模型，其契约由 [0.1 JSON Schema](docs/schema/report-v0.1.schema.json)定义。
+
+## 运维人员能看懂的拓扑
+
+```text
+Host
+├── NUMA 0  CPUs 0-47,96-143
+│   ├── GPU0  NVIDIA L20  0000:3b:00.0
+│   └── NIC   mlx5_0 / ens6f0  0000:41:00.0
+└── NUMA 1  CPUs 48-95,144-191
+    ├── GPU2  NVIDIA L20  0000:9a:00.0
+    └── NIC   mlx5_2 / ens12f0 0000:a1:00.0
+
+GPU P2P
+      GPU0 GPU1 GPU2 GPU3
+GPU0   —   PIX  SYS  SYS
+GPU1  PIX   —   SYS  SYS
+GPU2  SYS  SYS   —   PIX
+GPU3  SYS  SYS  PIX   —
+```
+
+默认人类界面保持紧凑；完整CPU、进程、PCIe和拓扑图仍保留在JSON中，供程序进一步分析。
+
+## v0.1.0的边界
+
+首个正式版本支持 Linux `amd64`和 `arm64`、NVIDIA GPU、Docker/NVIDIA Container Toolkit，以及单节点上的PyTorch、vLLM、SGLang尽力发现。
+
+它现在是诊断基础层，还不是benchmark套件、性能Profiler、监控Daemon、Kubernetes/Slurm资产系统或自动调优引擎。没有活跃工作负载或时间序列证据时，Performance Readiness可以保持 `UNKNOWN`，但报告必须解释原因。
+
+测试环境和当前限制见[验证记录](docs/validation.md)。
+
+## 路线图
+
+- **v0.2 — Verify：** 对比优化前后的报告，验证调整是否真正有效。
+- **v0.3 — Observe：** 对GPU、PCIe、NVLink、NUMA、CPU压力和RDMA进行有界短时采样。
+- **v0.4 — Diagnose inference：** 把vLLM/SGLang/PyTorch的放置和并行配置与性能证据关联起来。
+- **后续：** 可选DCGM/eBPF适配器、受控benchmark、离线HTML报告和只读MCP接口。
+
+AIStat的长期方向不变：**看懂节点、诊断全栈、优化推理链路，然后证明优化确实有效。**
+
+## 构建与贡献
+
+AIStat使用Go 1.26.5：
 
 ```bash
 git clone https://github.com/arpingblue/AIStat.git
 cd AIStat
 go test ./...
 CGO_ENABLED=0 go build -trimpath -o aistat ./cmd/aistat
-./aistat version
 ```
 
-Windows 开发命令：
+参与开发前请阅读 [CONTRIBUTING.md](CONTRIBUTING.md)、[架构](docs/architecture.md)、[采集器约定](docs/collectors.md)、[规则目录](docs/rules.md)和[安全模型](docs/security.md)。
 
-```powershell
-.\scripts\dev.ps1 test
-.\scripts\dev.ps1 cross
-```
+## 开源许可
 
-交叉构建只生成 Linux 二进制，不代表已经验证真实 Linux 或 NVIDIA 硬件采集。
-
-## 安装
-
-当前还没有稳定二进制 Release。以后发布 `v0.1.0` 等版本后，可在 Linux 上使用带 SHA256 校验的安装脚本：
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/arpingblue/AIStat/main/scripts/install.sh | \
-  AISTAT_VERSION=v0.1.0 sh
-```
-
-安装过程需要网络；安装后的 `aistat` 正常检查不需要网络。
-
-## 使用方法
-
-不带子命令运行 `aistat` 等同于 `aistat check`。
-
-```text
-aistat check [--format human|json] [--profile general|llm-inference]
-aistat info [--format human|json]
-aistat topology [--view tree|gpu|gpu-nic] [--format human|json]
-aistat stack [--format human|json]
-aistat runtime [--format human|json]
-aistat explain RULE_ID [--format human|json]
-aistat version [--format human|json]
-```
-
-常用示例：
-
-```bash
-aistat check
-aistat check --format json
-aistat check --profile general --fail-on warn
-aistat topology --view gpu-nic
-aistat explain NUMA001
-```
-
-每次检查都有总超时限制，默认 `10s`。更严格的 CI 可以使用 `--fail-on warn`。
-
-### 退出码
-
-| 退出码 | 含义 |
-|---:|---|
-| `0` | 检查完成，且没有 FAIL Finding |
-| `1` | 检查完成但存在 FAIL；或使用 `--fail-on warn` 时存在 WARN |
-| `2` | 参数错误或内部执行错误 |
-
-### 证据状态
-
-缺失证据永远不会被当作成功。Collector 会保留 `available`、`not_detected`、`unsupported`、`permission_denied`、`timeout`、`parse_error` 和 `unknown` 等状态。Rule 因而可以诚实地返回 `pass`、`warn`、`fail`、`info`、`unknown` 或 `skip`，而不是猜测。
-
-版本化 JSON 契约见 [数据模型](docs/data-model.md) 和 [JSON Schema 0.1](docs/schema/report-v0.1.schema.json)。
-
-## 架构
-
-```text
-Collectors -> Facts -> Normalizer -> Snapshot -> Topology Graph
-                                                    |
-                                                    v
-                                  Profile + Rules -> Report
-```
-
-- Collector 只采集事实和诊断，不输出修改建议。
-- Rule 只能使用标准化 Snapshot、Topology Graph、Profile 和时钟。
-- Reporter 只渲染统一 Report，不重新计算规则。
-
-进一步说明见 [架构](docs/architecture.md)、[采集器](docs/collectors.md) 和 [拓扑](docs/topology.md)。
-
-## 隐私与安全
-
-AIStat 使用固定的可执行文件 allowlist，从不调用 shell，限制命令输出大小，并会终止超时的进程树。进程参数和环境变量使用严格 allowlist。原始命令行、任意环境变量、Token、Prompt、凭据、主机修改和遥测均被设计为禁止项。
-
-参见 [安全设计](docs/security.md) 和 [安全策略](SECURITY.md)。
-
-## 测试
-
-```bash
-go test ./...
-go vet ./...
-make fuzz       # 有时间上限的解析器模糊测试
-```
-
-普通 CI 不要求 NVIDIA 硬件。脱敏 fixtures 覆盖可移植解析器、数据模型、拓扑、规则、报告、隐私和失败状态。真实 NVIDIA 验证仍是人工发布门，完成后必须记录到 [docs/validation.md](docs/validation.md)。
-
-## 贡献
-
-请先阅读 [CONTRIBUTING.md](CONTRIBUTING.md) 和 [AGENTS.md](AGENTS.md)。规则变更必须包含 trigger、pass、unknown、skip、边界和适用的误报回归测试。
-
-## License
-
-[Apache License 2.0](LICENSE)。
+AIStat使用 [Apache License 2.0](LICENSE)。

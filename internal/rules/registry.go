@@ -403,6 +403,9 @@ func evalTORCH001(ctx RuleContext, r rule) []model.Finding {
 		if active {
 			return unknown(r, "An active GPU runtime was detected, but its PyTorch CUDA probe is unavailable.")
 		}
+		if runtimeExecutionUnknown(ctx.Snapshot, "pytorch", "vllm", "sglang") {
+			return unknown(r, "Active PyTorch-based runtime visibility is incomplete because the container or process context could not be inspected.")
+		}
 		return skip(r, "No active runtime PyTorch CUDA probe was available.")
 	}
 	return pass(r, "PyTorch reports CUDA available in the active runtime.")
@@ -417,9 +420,13 @@ func evalCTR001(ctx RuleContext, r rule) []model.Finding {
 	case model.StateAvailable:
 		return pass(r, "Docker daemon is reachable.")
 	case model.StatePermissionDenied:
-		return unknown(r, "Docker daemon access was denied.")
-	case model.StateNotDetected, model.StateTimeout:
+		item := finding(r, model.StatusUnknown, model.SeverityHigh, model.Subject{Kind: "container_engine", ID: "docker"}, "Docker is installed, but the current user cannot access the Docker API.", "The required Docker daemon is inspectable by the current user through an administrator-approved access path.", "AIStat cannot inspect containers, GPU mappings, shared memory, or NVIDIA Container Toolkit configuration.", "Run 'docker version' as the same user and ask an administrator for an approved inspection method; Docker group access is effectively privileged.")
+		item.Verification = []string{"Run docker version as the same user and confirm both Client and Server sections are available.", "Re-run AIStat and confirm Docker-dependent findings are no longer UNKNOWN."}
+		return []model.Finding{item}
+	case model.StateNotDetected:
 		return []model.Finding{finding(r, model.StatusFail, model.SeverityHigh, model.Subject{Kind: "container_engine", ID: "docker"}, "Docker is required but the daemon is unreachable.", "The required Docker daemon is reachable.", "Container deployment cannot start or be inspected.", "Start Docker or repair its configured context and socket.")}
+	case model.StateTimeout:
+		return unknown(r, "Docker inspection timed out, so daemon availability could not be established.")
 	default:
 		return unknown(r, "Docker daemon state is not known.")
 	}
@@ -432,13 +439,52 @@ func evalCTR002(ctx RuleContext, r rule) []model.Finding {
 	if !needed {
 		return skip(r, "No Docker GPU deployment context is active.")
 	}
-	if ctx.Snapshot.Containers.State != model.StateAvailable {
-		return unknown(r, "Container runtime configuration is unavailable.")
+	containers := ctx.Snapshot.Containers
+	if containers.DaemonState != model.StateAvailable {
+		return unknown(r, "Docker GPU configuration cannot be evaluated because the Docker daemon is not fully inspectable.")
 	}
-	if !ctx.Snapshot.Containers.NVIDIARuntime || (ctx.Snapshot.Containers.ToolkitDetected != nil && !*ctx.Snapshot.Containers.ToolkitDetected) {
-		return []model.Finding{finding(r, model.StatusFail, model.SeverityHigh, model.Subject{Kind: "container_engine", ID: "docker"}, "NVIDIA Container Toolkit is missing or Docker is not configured for GPU access.", "Docker GPU deployment has a configured NVIDIA runtime/toolkit path.", "GPU containers cannot receive NVIDIA devices.", "Install and configure NVIDIA Container Toolkit, then validate with a minimal GPU container.")}
+	if containers.State != model.StateAvailable {
+		return unknown(r, "Container runtime configuration evidence is incomplete.")
 	}
-	return pass(r, "NVIDIA Container Toolkit is configured for Docker GPU use.")
+	gpuState := containers.GPUContainerState
+	if gpuState == "" {
+		if containers.NVIDIARuntime {
+			gpuState = model.StateAvailable
+		} else if containers.ToolkitDetected != nil && !*containers.ToolkitDetected {
+			gpuState = model.StateNotDetected
+		} else {
+			gpuState = model.StateUnknown
+		}
+	}
+	switch gpuState {
+	case model.StateAvailable:
+		modes := strings.Join(containers.GPUContainerModes, ", ")
+		if modes == "" {
+			modes = "NVIDIA runtime"
+		}
+		return pass(r, "Docker has a detected NVIDIA GPU integration path: "+modes+".")
+	case model.StateNotDetected:
+		switch containers.ToolkitState {
+		case model.StateNotDetected:
+			item := finding(r, model.StatusFail, model.SeverityHigh, model.Subject{Kind: "container_engine", ID: "docker"}, "NVIDIA Container Toolkit is not installed according to the host package database, component probes, Docker runtimes, and standard CDI locations.", "An NVIDIA Container Toolkit package and a Docker GPU integration path are present.", "Docker cannot currently provide NVIDIA GPUs to inference containers.", "Install NVIDIA Container Toolkit from NVIDIA's repository, configure Docker with nvidia-ctk, restart Docker, and then verify GPU injection.")
+			item.Verification = []string{"Run aistat stack and confirm both NVIDIA CTK and Docker GPU support are AVAILABLE.", "Use an administrator-approved local CUDA image to run nvidia-smi through Docker; AIStat does not start or pull a test container automatically."}
+			return []model.Finding{item}
+		case model.StateAvailable:
+			item := finding(r, model.StatusFail, model.SeverityHigh, model.Subject{Kind: "container_engine", ID: "docker"}, "NVIDIA Container Toolkit components are installed, but Docker has no detected NVIDIA runtime or CDI integration.", "The installed toolkit is configured for Docker GPU access.", "GPU device injection into inference containers is not configured.", "Configure Docker with 'sudo nvidia-ctk runtime configure --runtime=docker' and restart Docker, or configure a supported CDI path.")
+			item.Verification = []string{"Run docker info and confirm the nvidia runtime or an intended CDI configuration is visible.", "Re-run aistat stack and confirm Docker GPU support is AVAILABLE."}
+			return []model.Finding{item}
+		default:
+			return unknown(r, "No Docker GPU integration was detected, but toolkit installation could not be conclusively checked.")
+		}
+	case model.StatePermissionDenied:
+		return unknown(r, "Docker GPU integration evidence is permission-blocked; absence is not inferred.")
+	case model.StateTimeout:
+		return unknown(r, "Docker GPU integration inspection timed out; absence is not inferred.")
+	case model.StateParseError:
+		return unknown(r, "Docker GPU integration metadata could not be parsed; absence is not inferred.")
+	default:
+		return unknown(r, "Docker GPU integration could not be conclusively determined from runtime, CDI, package, and component evidence.")
+	}
 }
 func evalCTR003(ctx RuleContext, r rule) []model.Finding {
 	if ctx.Snapshot.Containers.State != model.StateAvailable {
@@ -513,6 +559,9 @@ func evalSGL002(ctx RuleContext, r rule) []model.Finding {
 		}
 	}
 	if !found {
+		if runtimeExecutionUnknown(ctx.Snapshot, "sglang") {
+			return unknown(r, "SGLang runtime visibility is incomplete, so disaggregation context cannot be excluded.")
+		}
 		return skip(r, "No SGLang disaggregation context was detected.")
 	}
 	return pass(r, "SGLang disaggregation HCA references are usable.")
@@ -545,6 +594,13 @@ func worldSizeRule(ctx RuleContext, r rule, kind string, torch bool) []model.Fin
 	if !found {
 		if active {
 			return unknown(r, "An applicable runtime was detected, but local world size is unavailable.")
+		}
+		products := []string{kind}
+		if kind == "" {
+			products = []string{"pytorch", "vllm", "sglang"}
+		}
+		if runtimeExecutionUnknown(ctx.Snapshot, products...) {
+			return unknown(r, "Runtime visibility is incomplete, so the applicable local-world-size context cannot be excluded.")
 		}
 		return skip(r, "No applicable runtime local-world-size context was detected.")
 	}
@@ -590,9 +646,25 @@ func visibleSelectionRule(ctx RuleContext, r rule, kind string) []model.Finding 
 		}
 	}
 	if !found {
+		if runtimeExecutionUnknown(ctx.Snapshot, kind) {
+			return unknown(r, "Runtime visibility is incomplete, so explicit GPU selection cannot be excluded.")
+		}
 		return skip(r, "No explicit runtime GPU selection was detected.")
 	}
 	return pass(r, "Runtime GPU selection references are unique and valid.")
+}
+
+func runtimeExecutionUnknown(snapshot *model.Snapshot, kinds ...string) bool {
+	wanted := map[string]bool{}
+	for _, kind := range kinds {
+		wanted[strings.ToLower(kind)] = true
+	}
+	for _, product := range snapshot.Runtimes.Products {
+		if wanted[strings.ToLower(product.Name)] && (product.ExecutionState == model.StateUnknown || product.ExecutionState == model.StatePermissionDenied || product.ExecutionState == model.StateTimeout) {
+			return true
+		}
+	}
+	return false
 }
 func gpuSubject(gpu model.GPU) model.Subject {
 	id := gpu.UUID

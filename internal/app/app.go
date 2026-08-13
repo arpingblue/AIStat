@@ -37,9 +37,11 @@ import (
 	"github.com/arpingblue/AIStat/internal/version"
 )
 
-const usageText = `AIStat is a read-only NVIDIA AI node readiness inspector.
+const usageText = `AIStat helps AI infrastructure engineers prepare and optimize Linux NVIDIA nodes for large-model deployment and high-performance inference.
+It unifies hardware topology, the CUDA stack, containers, and inference runtimes to expose deployment blockers and performance bottlenecks, then provides verifiable optimization guidance.
 
 Usage:
+  aistat status [options]
   aistat check [options]
   aistat info [options]
   aistat topology [options]
@@ -47,6 +49,14 @@ Usage:
   aistat runtime [options]
   aistat explain RULE_ID [--format human|json]
   aistat version [--format human|json]
+
+Command roles:
+  status      fast operator overview (also the default command)
+  check       detailed findings, evidence, and recommendations
+  info        hardware inventory
+  topology    compact NUMA/GPU/NIC topology
+  stack       NVIDIA and container software stack
+  runtime     PyTorch, vLLM, and SGLang installations and instances
 
 Options:
   --format human|json
@@ -71,7 +81,7 @@ func Run(args []string, stdout, stderr io.Writer) int {
 
 func RunContext(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		args = []string{"check"}
+		args = []string{"status"}
 	}
 	command := args[0]
 	if command == "help" || command == "-h" || command == "--help" {
@@ -84,12 +94,13 @@ func RunContext(ctx context.Context, args []string, stdout, stderr io.Writer) in
 	if command == "explain" {
 		return runExplain(args[1:], stdout, stderr)
 	}
-	if command != "check" && command != "info" && command != "topology" && command != "stack" && command != "runtime" {
+	if command != "status" && command != "check" && command != "info" && command != "topology" && command != "stack" && command != "runtime" {
 		fmt.Fprintf(stderr, "unknown command %q\n\n%s", command, usageText)
 		return 2
 	}
 	opts, err := parseOptions(command, args[1:], stderr)
 	if err != nil {
+		fmt.Fprintln(stderr, err)
 		return 2
 	}
 	format, err := report.ParseFormat(opts.format)
@@ -109,23 +120,26 @@ func RunContext(ctx context.Context, args []string, stdout, stderr io.Writer) in
 		fmt.Fprintln(stderr, "inspection failed:", err)
 		return 2
 	}
+	reportOptions := report.Options{Color: colorEnabled(stdout, opts.noColor, format)}
 	switch command {
+	case "status":
+		err = report.WriteStatus(stdout, format, value, reportOptions)
 	case "check":
-		err = report.Write(stdout, format, value)
+		err = report.WriteWithOptions(stdout, format, value, reportOptions)
 	case "info":
-		err = report.WriteInfo(stdout, format, value)
+		err = report.WriteInfoWithOptions(stdout, format, value, reportOptions)
 	case "stack":
-		err = report.WriteStack(stdout, format, value)
+		err = report.WriteStackWithOptions(stdout, format, value, reportOptions)
 	case "runtime":
-		err = report.WriteRuntime(stdout, format, value)
+		err = report.WriteRuntimeWithOptions(stdout, format, value, reportOptions)
 	case "topology":
-		err = writeTopology(stdout, format, value, graph, opts.view)
+		err = writeTopology(stdout, format, value, graph, opts.view, reportOptions)
 	}
 	if err != nil {
 		fmt.Fprintln(stderr, "write report:", err)
 		return 2
 	}
-	if command == "check" {
+	if command == "check" || command == "status" {
 		if value.Summary.Fail > 0 {
 			return 1
 		}
@@ -160,6 +174,9 @@ func parseOptions(command string, args []string, stderr io.Writer) (options, err
 	if opts.failOn != "fail" && opts.failOn != "warn" {
 		return opts, errors.New("fail-on must be fail or warn")
 	}
+	if command == "topology" && opts.view != "tree" && opts.view != "gpu" && opts.view != "gpu-nic" {
+		return opts, fmt.Errorf("view must be tree, gpu, or gpu-nic (got %q)", opts.view)
+	}
 	return opts, nil
 }
 func profileFor(name string) (model.Profile, error) {
@@ -179,7 +196,12 @@ func inspect(ctx context.Context, profile model.Profile) (model.Report, *topolog
 	if err != nil {
 		return model.Report{}, nil, err
 	}
-	env := basecollector.Env{Runner: execx.SafeRunner{Resolver: execx.NewResolver("nvidia-smi", "docker", "python3", "nvidia-ctk", "dmesg", "lspci")}, FileSystem: fsx.OS{}, Clock: clock.Real{}, Platform: runtime.GOOS}
+	home, _ := os.UserHomeDir()
+	environment := map[string]string{}
+	for _, key := range []string{"PATH", "CONDA_PREFIX", "VIRTUAL_ENV"} {
+		environment[key] = os.Getenv(key)
+	}
+	env := basecollector.Env{Runner: execx.SafeRunner{Resolver: execx.NewResolver("nvidia-smi", "docker", "python3", "nvidia-ctk", "nvidia-container-cli", "nvidia-container-runtime", "dpkg-query", "rpm", "dmesg", "lspci")}, FileSystem: fsx.OS{}, Clock: clock.Real{}, Platform: runtime.GOOS, HomeDir: home, Environment: environment}
 	results, statuses, err := registry.Run(ctx, env)
 	if err != nil {
 		return model.Report{}, nil, err
@@ -206,8 +228,11 @@ func resolveProfile(profile model.Profile, snapshot *model.Snapshot) model.Profi
 			profile.DockerRequired = true
 		}
 	}
-	if len(snapshot.Containers.Devices) > 0 {
-		profile.DockerRequired = true
+	for _, container := range snapshot.Containers.Devices {
+		if container.GPURequired || strings.EqualFold(container.Runtime, "nvidia") {
+			profile.DockerRequired = true
+			break
+		}
 	}
 	for _, runtime := range snapshot.Runtimes.Instances {
 		if len(runtime.GPUs) > 0 || runtime.CUDAVersion != "" {
@@ -276,7 +301,7 @@ func runExplain(args []string, stdout, stderr io.Writer) int {
 	fmt.Fprintf(stderr, "unknown rule %q\n", id)
 	return 2
 }
-func writeTopology(w io.Writer, format report.Format, value model.Report, graph *topology.Graph, view string) error {
+func writeTopology(w io.Writer, format report.Format, value model.Report, graph *topology.Graph, view string, options report.Options) error {
 	if format == report.FormatJSON {
 		encoder := json.NewEncoder(w)
 		encoder.SetIndent("", "  ")
@@ -286,29 +311,152 @@ func writeTopology(w io.Writer, format report.Format, value model.Report, graph 
 	if !valid[view] {
 		return fmt.Errorf("unsupported topology view %q", view)
 	}
-	ids := make([]string, 0, len(graph.Nodes))
-	for id := range graph.Nodes {
-		ids = append(ids, id)
+	if value.Node == nil {
+		return errors.New("report node is nil")
 	}
-	sort.Strings(ids)
-	fmt.Fprintln(w, "Topology")
-	for _, id := range ids {
-		node := graph.Nodes[id]
-		if view == "gpu" && node.Kind != topology.NodeGPU {
-			continue
-		}
-		if view == "gpu-nic" && node.Kind != topology.NodeGPU && node.Kind != topology.NodeNIC && node.Kind != topology.NodeRDMA {
-			continue
-		}
-		fmt.Fprintf(w, "%-16s %-12s %s\n", node.Kind, node.ID, node.Label)
+	snapshot := *value.Node
+	fmt.Fprintf(w, "Topology — %s\n", emptyText(snapshot.Meta.Hostname))
+	numaIDs := make([]int, 0, len(snapshot.NUMA.Nodes))
+	for _, node := range snapshot.NUMA.Nodes {
+		numaIDs = append(numaIDs, node.ID)
 	}
-	fmt.Fprintln(w, "\nLinks")
-	for _, edge := range graph.Edges {
-		if view != "tree" && edge.Kind != topology.EdgeP2P && edge.Kind != topology.EdgeLocalTo {
-			continue
+	sort.Ints(numaIDs)
+	unknownGPUs := []model.GPU{}
+	for _, gpu := range sortedGPUs(snapshot.GPUs.Devices) {
+		if gpu.NUMANode == nil {
+			unknownGPUs = append(unknownGPUs, gpu)
 		}
-		fmt.Fprintf(w, "%s -> %s [%s]\n", edge.From, edge.To, edge.Kind)
 	}
-	_ = value
+	unknownNICs := []model.NIC{}
+	if view != "gpu" {
+		for _, nic := range physicalNICs(snapshot.Network.NICs) {
+			if nic.NUMANode == nil {
+				unknownNICs = append(unknownNICs, nic)
+			}
+		}
+	}
+	hasUnknown := len(unknownGPUs)+len(unknownNICs) > 0
+	for position, numaID := range numaIDs {
+		branch, indent := "├──", "│   "
+		if position == len(numaIDs)-1 && !hasUnknown {
+			branch, indent = "└──", "    "
+		}
+		fmt.Fprintf(w, "%s NUMA %d\n", branch, numaID)
+		if view == "tree" {
+			for _, node := range snapshot.NUMA.Nodes {
+				if node.ID == numaID {
+					fmt.Fprintf(w, "%s├── CPUs: %s\n", indent, report.CompressCPUSet(node.CPUList))
+					break
+				}
+			}
+		}
+		for _, gpu := range sortedGPUs(snapshot.GPUs.Devices) {
+			if gpu.NUMANode != nil && *gpu.NUMANode == numaID {
+				fmt.Fprintf(w, "%s├── GPU %d: %s  PCI %s  %.1f GiB\n", indent, gpu.Index, emptyText(gpu.Name), emptyText(gpu.PCIAddress), float64(gpu.MemoryTotalBytes)/(1<<30))
+			}
+		}
+		if view != "gpu" {
+			for _, nic := range physicalNICs(snapshot.Network.NICs) {
+				if nic.NUMANode != nil && *nic.NUMANode == numaID {
+					fmt.Fprintf(w, "%s├── NIC %s: state=%s PCI=%s speed=%d Mbps\n", indent, nic.Name, emptyText(nic.OperState), emptyText(nic.PCIAddress), nic.SpeedMbps)
+				}
+			}
+			for _, rdma := range snapshot.RDMA.Devices {
+				if rdma.NUMANode != nil && *rdma.NUMANode == numaID {
+					fmt.Fprintf(w, "%s└── RDMA %s: netdev=%s state=%s\n", indent, rdma.Name, emptyText(rdma.NetDevice), emptyText(rdma.State))
+				}
+			}
+		}
+	}
+	if hasUnknown {
+		fmt.Fprintln(w, "└── Unassigned / Unknown NUMA")
+		for _, gpu := range unknownGPUs {
+			fmt.Fprintf(w, "    ├── GPU %d: %s  PCI %s\n", gpu.Index, emptyText(gpu.Name), emptyText(gpu.PCIAddress))
+		}
+		for _, nic := range unknownNICs {
+			fmt.Fprintf(w, "    └── NIC %s: state=%s PCI=%s\n", nic.Name, emptyText(nic.OperState), emptyText(nic.PCIAddress))
+		}
+	}
+	writeP2PMatrix(w, snapshot.GPUs.Devices, snapshot.P2P)
+	_ = graph
+	_ = options
 	return nil
+}
+
+func writeP2PMatrix(w io.Writer, gpus []model.GPU, links []model.P2PLink) {
+	gpus = sortedGPUs(gpus)
+	if len(gpus) < 2 {
+		return
+	}
+	index := map[string]int{}
+	for _, gpu := range gpus {
+		index[gpu.UUID] = gpu.Index
+		if gpu.UUID == "" {
+			index[fmt.Sprint(gpu.Index)] = gpu.Index
+		}
+	}
+	matrix := map[[2]int]string{}
+	for _, link := range links {
+		from, fromOK := index[link.FromGPU]
+		to, toOK := index[link.ToGPU]
+		if !fromOK || !toOK {
+			continue
+		}
+		matrix[[2]int{from, to}], matrix[[2]int{to, from}] = link.Kind, link.Kind
+	}
+	fmt.Fprintln(w, "\nGPU P2P")
+	fmt.Fprint(w, "       ")
+	for _, gpu := range gpus {
+		fmt.Fprintf(w, "%-7s", fmt.Sprintf("GPU%d", gpu.Index))
+	}
+	fmt.Fprintln(w)
+	for _, from := range gpus {
+		fmt.Fprintf(w, "GPU%-4d", from.Index)
+		for _, to := range gpus {
+			value := "X"
+			if from.Index != to.Index {
+				value = matrix[[2]int{from.Index, to.Index}]
+				if value == "" {
+					value = "?"
+				}
+			}
+			fmt.Fprintf(w, "%-7s", value)
+		}
+		fmt.Fprintln(w)
+	}
+}
+
+func sortedGPUs(values []model.GPU) []model.GPU {
+	result := append([]model.GPU(nil), values...)
+	sort.Slice(result, func(i, j int) bool { return result[i].Index < result[j].Index })
+	return result
+}
+func physicalNICs(values []model.NIC) []model.NIC {
+	result := []model.NIC{}
+	for _, value := range values {
+		if value.PCIAddress != "" {
+			result = append(result, value)
+		}
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i].Name < result[j].Name })
+	return result
+}
+func emptyText(value string) string {
+	if strings.TrimSpace(value) == "" {
+		return "unknown"
+	}
+	return value
+}
+
+func colorEnabled(w io.Writer, disabled bool, format report.Format) bool {
+	file, ok := w.(*os.File)
+	if !ok {
+		return colorEnabledFor(false, disabled, format, os.Getenv("NO_COLOR"))
+	}
+	info, err := file.Stat()
+	return colorEnabledFor(err == nil && info.Mode()&os.ModeCharDevice != 0, disabled, format, os.Getenv("NO_COLOR"))
+}
+
+func colorEnabledFor(terminal, disabled bool, format report.Format, noColorEnvironment string) bool {
+	return terminal && !disabled && format == report.FormatHuman && noColorEnvironment == ""
 }

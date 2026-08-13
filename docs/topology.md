@@ -4,4 +4,6 @@ Graph nodes include host, CPU package, NUMA node, CPU, PCI root/bridge/device, G
 
 The NVIDIA topology parser preserves GPU↔GPU and GPU↔NIC/NVMe paths plus GPU CPU/NUMA affinity. Unknown future tokens remain structured with status `unknown`. The graph builder performs no I/O. Unknown parents or topology tokens degrade gracefully. `RootForPCI`, `LocalNUMA`, `Neighbors`, and `Distance` are stable query primitives used by topology and placement rules.
 
+ANSI/CSI formatting emitted by `nvidia-smi topo` is removed before header and matrix parsing. Human output is intentionally a compact Host→NUMA→CPU-range/GPU/physical-NIC/RDMA tree plus a GPU P2P matrix. Per-CPU and process edges remain in JSON but are not expanded in the terminal view.
+
 `TOPO001` only recommends an alternative GPU set when a same-size visible set is no worse on every known pair and strictly better on at least one pair. AIStat never reorders devices automatically.

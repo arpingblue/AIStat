@@ -27,11 +27,15 @@ The first complete GitHub-hosted validation passed on 2026-08-13:
 
 Bounded parser fuzz targets cover CPU lists, NUMA lists, meminfo, NVIDIA CSV/topology, PCI ACS, and allowlisted runtime arguments. CI executes short fuzz smoke sessions; longer runs are available through `make fuzz`.
 
-## Still required before `v0.1.0`
+## NVIDIA field validation
 
-- At least one real NVIDIA Linux integration run covering GPU inventory, topology, Xid permission behavior, Docker/NVIDIA Container Toolkit, and an active framework/runtime.
-- Review the generated report from that host for privacy and false positives.
+- Multiple normal-user runs on a four-GPU NVIDIA L20 node completed on 2026-08-13. They validated the static Linux binary, GPU/PCIe/NUMA inventory, all six GPU P2P pairs, Docker permission and daemon states, host Python package discovery, JSON output, the rule registry, and read-only execution.
+- Those runs exposed ANSI-decorated topology headers, Docker permission UX, focused-topology output, NVIDIA Container Toolkit evidence gaps, and runtime classification gaps. Each issue has a sanitized regression test in the `v0.1.0` source.
+- A complete active vLLM/SGLang workload run has not yet been recorded. Runtime process parsing and installation discovery are covered by sanitized fixtures, but that coverage must not be represented as an end-to-end production workload validation.
+- Kernel Xid history can remain unavailable to an unprivileged user. AIStat reports this as an inspection gap rather than claiming that no Xid event exists.
 
-The project owner will perform this NVIDIA validation manually when a suitable Linux host is available. Until its sanitized evidence is recorded here, the repository remains pre-release and must not be tagged `v0.1.0`.
+## `v0.1.0` release decision
 
-Windows results and fixture coverage must not be represented as real Linux/NVIDIA validation. No `v0.1.0` tag should be published until the remaining gates are recorded here.
+The maintainer accepted the initial public release with the active-workload limitation stated above. `v0.1.0` is a read-only diagnostic foundation, not a claim of benchmark accuracy, automatic optimization, or validation across every NVIDIA platform.
+
+Future releases that add observation, profiling, benchmark, or automatic recommendation validation must add new real-hardware gates before publishing those capabilities as stable.

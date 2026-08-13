@@ -178,6 +178,7 @@ func ParseTopology(raw string, gpus []model.GPU) []model.P2PLink {
 }
 
 func ParseTopologyMatrix(raw string, gpus []model.GPU) ([]model.P2PLink, []model.TopologyConnection) {
+	raw = stripANSI(raw)
 	lines := strings.Split(strings.ReplaceAll(raw, "\r\n", "\n"), "\n")
 	if len(lines) < 2 {
 		return nil, nil
@@ -265,14 +266,25 @@ func commandState(res execx.Result, err error) model.FactState {
 	if res.TimedOut {
 		return model.StateTimeout
 	}
-	message := strings.ToLower(err.Error() + " " + res.Stderr)
-	if strings.Contains(message, "permission") || strings.Contains(message, "access is denied") {
+	message := strings.ToLower(errorText(err) + " " + res.Stderr)
+	if strings.Contains(message, "permission") || strings.Contains(message, "not permitted") || strings.Contains(message, "access is denied") {
 		return model.StatePermissionDenied
 	}
 	if strings.Contains(message, "executable file not found") || strings.Contains(message, "cannot find") || strings.Contains(message, "not found") {
 		return model.StateNotDetected
 	}
 	return model.StateUnknown
+}
+
+var ansiCSI = regexp.MustCompile(`\x1b\[[0-?]*[ -/]*[@-~]`)
+
+func stripANSI(value string) string { return ansiCSI.ReplaceAllString(value, "") }
+
+func errorText(err error) string {
+	if err == nil {
+		return ""
+	}
+	return err.Error()
 }
 func trim(value string) string { return strings.TrimSpace(value) }
 func number(raw string) (float64, bool) {

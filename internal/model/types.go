@@ -324,6 +324,7 @@ type GPUProcess struct {
 
 type Container struct {
 	ID            string   `json:"id"`
+	InitPID       int      `json:"init_pid,omitempty"`
 	Name          string   `json:"name,omitempty"`
 	Image         string   `json:"image,omitempty"`
 	Runtime       string   `json:"runtime,omitempty"`
@@ -339,21 +340,34 @@ type Container struct {
 }
 
 type ContainerState struct {
-	State           FactState   `json:"state"`
-	DaemonState     FactState   `json:"daemon_state"`
-	Engine          string      `json:"engine,omitempty"`
-	EngineVersion   string      `json:"engine_version,omitempty"`
-	DefaultRuntime  string      `json:"default_runtime,omitempty"`
-	NVIDIARuntime   bool        `json:"nvidia_runtime,omitempty"`
-	ToolkitDetected *bool       `json:"toolkit_detected,omitempty"`
-	ToolkitVersion  string      `json:"toolkit_version,omitempty"`
-	CgroupVersion   string      `json:"cgroup_version,omitempty"`
-	Rootless        *bool       `json:"rootless,omitempty"`
-	Devices         []Container `json:"containers,omitempty"`
+	State               FactState   `json:"state"`
+	ClientState         FactState   `json:"client_state,omitempty"`
+	DaemonState         FactState   `json:"daemon_state"`
+	Engine              string      `json:"engine,omitempty"`
+	ClientVersion       string      `json:"client_version,omitempty"`
+	EngineVersion       string      `json:"engine_version,omitempty"`
+	DefaultRuntime      string      `json:"default_runtime,omitempty"`
+	NVIDIARuntime       bool        `json:"nvidia_runtime,omitempty"`
+	NVIDIARuntimeState  FactState   `json:"nvidia_runtime_state,omitempty"`
+	ToolkitDetected     *bool       `json:"toolkit_detected,omitempty"`
+	ToolkitState        FactState   `json:"toolkit_state,omitempty"`
+	ToolkitVersion      string      `json:"toolkit_version,omitempty"`
+	ToolkitPackageState FactState   `json:"toolkit_package_state,omitempty"`
+	ToolkitPackages     []string    `json:"toolkit_packages,omitempty"`
+	ToolkitCLIState     FactState   `json:"toolkit_cli_state,omitempty"`
+	CDIState            FactState   `json:"cdi_state,omitempty"`
+	CDISpecs            []string    `json:"cdi_specs,omitempty"`
+	GPUContainerState   FactState   `json:"gpu_container_state,omitempty"`
+	GPUContainerModes   []string    `json:"gpu_container_modes,omitempty"`
+	ToolkitEvidence     []string    `json:"toolkit_evidence,omitempty"`
+	CgroupVersion       string      `json:"cgroup_version,omitempty"`
+	Rootless            *bool       `json:"rootless,omitempty"`
+	Devices             []Container `json:"containers,omitempty"`
 }
 
 type Process struct {
 	PID         int               `json:"pid"`
+	RuntimeKind string            `json:"runtime_kind,omitempty"`
 	Executable  string            `json:"executable,omitempty"`
 	Command     string            `json:"command,omitempty"`
 	User        string            `json:"user,omitempty"`
@@ -373,6 +387,7 @@ type ProcessState struct {
 type RuntimeInstance struct {
 	Kind               string            `json:"kind"`
 	Version            string            `json:"version,omitempty"`
+	PyTorchVersion     string            `json:"pytorch_version,omitempty"`
 	PythonVersion      string            `json:"python_version,omitempty"`
 	CUDAAvailable      *bool             `json:"cuda_available,omitempty"`
 	CUDAVersion        string            `json:"cuda_version,omitempty"`
@@ -381,6 +396,7 @@ type RuntimeInstance struct {
 	PID                int               `json:"pid,omitempty"`
 	ContainerID        string            `json:"container_id,omitempty"`
 	Executable         string            `json:"executable,omitempty"`
+	PythonEnvironment  string            `json:"python_environment,omitempty"`
 	GPUs               []string          `json:"gpus,omitempty"`
 	CPUSet             []int             `json:"cpu_set,omitempty"`
 	NUMAMems           []int             `json:"numa_mems,omitempty"`
@@ -400,9 +416,33 @@ type RuntimeInstance struct {
 	Details            map[string]string `json:"details,omitempty"`
 }
 
+type RuntimeInstallation struct {
+	Product           string     `json:"product"`
+	Version           string     `json:"version,omitempty"`
+	Path              string     `json:"path"`
+	PythonEnvironment string     `json:"python_environment,omitempty"`
+	Scope             string     `json:"scope"`
+	ContainerID       string     `json:"container_id,omitempty"`
+	Source            string     `json:"source"`
+	Confidence        Confidence `json:"confidence"`
+}
+
+type RuntimeProduct struct {
+	Name               string                `json:"name"`
+	InstallationState  FactState             `json:"installation_state"`
+	InstallationReason string                `json:"installation_reason,omitempty"`
+	ExecutionState     FactState             `json:"execution_state"`
+	ExecutionReason    string                `json:"execution_reason,omitempty"`
+	HostState          FactState             `json:"host_state"`
+	ContainerState     FactState             `json:"container_state"`
+	InstanceCount      int                   `json:"instance_count"`
+	Installations      []RuntimeInstallation `json:"installations,omitempty"`
+}
+
 type RuntimeState struct {
 	State     FactState         `json:"state"`
 	Instances []RuntimeInstance `json:"instances,omitempty"`
+	Products  []RuntimeProduct  `json:"products,omitempty"`
 }
 
 type CollectorStatus struct {

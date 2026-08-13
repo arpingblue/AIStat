@@ -33,12 +33,14 @@ type Collector interface {
 }
 
 type Env struct {
-	Runner     execx.Runner
-	FileSystem fsx.FileSystem
-	Clock      clock.Clock
-	Platform   string
-	Fixture    bool
-	Facts      map[string]model.Fact
+	Runner      execx.Runner
+	FileSystem  fsx.FileSystem
+	Clock       clock.Clock
+	Platform    string
+	Fixture     bool
+	Facts       map[string]model.Fact
+	HomeDir     string
+	Environment map[string]string
 }
 
 type Result struct {

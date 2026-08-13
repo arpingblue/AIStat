@@ -2,7 +2,7 @@ AIStat test
 
 NVIDIA AI Node Check
 
-Deployment Readiness    NOT_READY
+Deployment Readiness    NOT READY
 Performance Readiness   READY
 
 1 blocker(s), 0 warning(s), 0 unknown

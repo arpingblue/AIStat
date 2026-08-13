@@ -1006,8 +1006,10 @@ aistat
 等价于：
 
 ```bash
-aistat check --profile llm-inference
+aistat status --profile llm-inference
 ```
+
+`status` 是运维总览；`check` 保留完整 Finding、证据、建议与验证步骤。
 
 Profile 自定义文件格式：
 

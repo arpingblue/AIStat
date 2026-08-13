@@ -2,5 +2,7 @@
 /.cache/
 /bin/
 /dist/
+/tmp/
+/aistat_logs*.tar.gz
 /coverage.out
 *.exe

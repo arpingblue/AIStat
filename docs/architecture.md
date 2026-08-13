@@ -18,4 +18,4 @@ Collectors implement `ID`, `Provides`, `Requires`, and `Collect(context, Env)`. 
 
 The normalizer is the only layer that maps fact keys into the typed snapshot. The first graph pass contains host, NUMA, CPU, PCI, GPU, NIC, and RDMA relationships. Runtime enrichment adds process, container, CPU-use, and GPU-use edges without I/O.
 
-Rules are pure functions of snapshot, graph, profile, and injected time. The engine sorts deterministically and computes deployment and performance readiness once. Both reporters consume that same report model.
+Rules are pure functions of snapshot, graph, profile, and injected time. The engine sorts deterministically and computes deployment and performance readiness once. Status, check, inventory, stack, runtime, topology, and JSON reporters consume that same report model; reporters never recollect or reinterpret host facts.

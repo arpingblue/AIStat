@@ -90,3 +90,115 @@ func TestJSONGolden(t *testing.T) {
 		t.Fatalf("golden mismatch\n--- got ---\n%s\n--- want ---\n%s", buffer.String(), want)
 	}
 }
+
+func TestHumanColorCanBeEnabledWithoutLeakingIntoJSON(t *testing.T) {
+	value := validReport()
+	value.Readiness.Deployment = "unknown"
+	value.Summary.Unknown = 1
+	value.Findings = []model.Finding{testFinding("TEST001", model.StatusUnknown, "permission denied")}
+	var human bytes.Buffer
+	if err := WriteWithOptions(&human, FormatHuman, value, Options{Color: true}); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(human.String(), "\x1b[91mUNKNOWN\x1b[0m") {
+		t.Fatalf("missing status color: %q", human.String())
+	}
+	var plain bytes.Buffer
+	if err := WriteWithOptions(&plain, FormatHuman, value, Options{}); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(plain.String(), "\x1b[") {
+		t.Fatal("plain output contains ANSI")
+	}
+	var jsonOutput bytes.Buffer
+	if err := WriteWithOptions(&jsonOutput, FormatJSON, value, Options{Color: true}); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(jsonOutput.String(), "\x1b[") {
+		t.Fatal("JSON contains ANSI")
+	}
+}
+
+func TestStatusJSONMatchesCheckJSON(t *testing.T) {
+	value := validReport()
+	var check, status bytes.Buffer
+	if err := Write(&check, FormatJSON, value); err != nil {
+		t.Fatal(err)
+	}
+	if err := WriteStatus(&status, FormatJSON, value, Options{}); err != nil {
+		t.Fatal(err)
+	}
+	if check.String() != status.String() {
+		t.Fatalf("status JSON differs from check JSON")
+	}
+}
+
+func TestCompressCPUSet(t *testing.T) {
+	if got := CompressCPUSet([]int{3, 2, 1, 8, 10, 9, 3}); got != "1-3,8-10" {
+		t.Fatalf("got %q", got)
+	}
+}
+
+func TestOperatorViewsExposePermissionAndRuntimePartitions(t *testing.T) {
+	value := validReport()
+	value.Node.Meta.Hostname = "gpu-node"
+	value.Node.Containers = model.ContainerState{State: model.StatePermissionDenied, ClientState: model.StateAvailable, DaemonState: model.StatePermissionDenied, Engine: "docker", ClientVersion: "28.0.0"}
+	value.Node.Runtimes = model.RuntimeState{State: model.StateAvailable, Products: []model.RuntimeProduct{{Name: "vllm", InstallationState: model.StateAvailable, ExecutionState: model.StateAvailable, HostState: model.StateNotDetected, ContainerState: model.StatePermissionDenied, InstanceCount: 1, Installations: []model.RuntimeInstallation{{Product: "vllm", Version: "0.9.0", Path: "/opt/conda/lib/python3.12/site-packages/vllm.dist-info", Scope: "container", ContainerID: "abc123", Source: "python package metadata", Confidence: model.ConfidenceHigh}}}}, Instances: []model.RuntimeInstance{{Kind: "vllm", Version: "0.9.0", PyTorchVersion: "2.8.0", PID: 42, GPUs: []string{"GPU-0"}, CPUSet: []int{0, 1, 2, 3}}}}
+	var status bytes.Buffer
+	if err := WriteStatus(&status, FormatHuman, value, Options{}); err != nil {
+		t.Fatal(err)
+	}
+	for _, expected := range []string{"Hardware", "NVIDIA Stack", "Containers", "AI Runtimes", "vLLM", "PERMISSION DENIED", "Docker group access is effectively privileged"} {
+		if !strings.Contains(status.String(), expected) {
+			t.Fatalf("status missing %q:\n%s", expected, status.String())
+		}
+	}
+	var runtime bytes.Buffer
+	if err := WriteRuntime(&runtime, FormatHuman, value); err != nil {
+		t.Fatal(err)
+	}
+	for _, expected := range []string{"Installation  AVAILABLE", "Execution     AVAILABLE", "version=0.9.0", "pid=42", "pytorch=2.8.0", "CPU=0-3"} {
+		if !strings.Contains(runtime.String(), expected) {
+			t.Fatalf("runtime missing %q:\n%s", expected, runtime.String())
+		}
+	}
+	var stack bytes.Buffer
+	if err := WriteStack(&stack, FormatHuman, value); err != nil {
+		t.Fatal(err)
+	}
+	for _, expected := range []string{"Docker client", "28.0.0", "current user cannot access", "Docker group membership is effectively privileged"} {
+		if !strings.Contains(stack.String(), expected) {
+			t.Fatalf("stack missing %q:\n%s", expected, stack.String())
+		}
+	}
+}
+
+func TestStatusExplainsToolkitEvidenceAndReadiness(t *testing.T) {
+	value := validReport()
+	value.Readiness = model.Readiness{Deployment: "not_ready", Performance: "unknown"}
+	deploymentFail := testFinding("CTR002", model.StatusFail, "toolkit missing")
+	performanceUnknown := testFinding("PCIE002", model.StatusUnknown, "ACS evidence unavailable")
+	performanceUnknown.Dimension = model.DimensionPerformance
+	value.Findings = []model.Finding{deploymentFail, performanceUnknown}
+	value.Node.Containers = model.ContainerState{
+		State: model.StateAvailable, ClientState: model.StateAvailable, DaemonState: model.StateAvailable,
+		ToolkitState: model.StateNotDetected, ToolkitPackageState: model.StateNotDetected,
+		ToolkitCLIState: model.StateNotDetected, NVIDIARuntimeState: model.StateNotDetected,
+		CDIState: model.StateNotDetected, GPUContainerState: model.StateNotDetected,
+	}
+	var output bytes.Buffer
+	if err := WriteStatus(&output, FormatHuman, value, Options{}); err != nil {
+		t.Fatal(err)
+	}
+	for _, expected := range []string{
+		"NVIDIA CTK NOT INSTALLED",
+		"no package, toolkit command, NVIDIA runtime, or standard CDI specification found",
+		"Docker GPU NOT CONFIGURED",
+		"1 blocker(s)",
+		"1 evidence gap(s)",
+	} {
+		if !strings.Contains(output.String(), expected) {
+			t.Fatalf("status missing %q:\n%s", expected, output.String())
+		}
+	}
+}

@@ -1,174 +1,209 @@
-# AIStat
+<div align="center">
+  <img src="docs/assets/aistat-banner.svg" alt="AIStat — NVIDIA AI Infra diagnostics" width="100%">
 
-[English](README.md) | [简体中文](README.zh-CN.md)
+  <p><strong>Understand an unfamiliar NVIDIA node in one command.</strong></p>
+  <p>Read-only inspection and evidence-based diagnostics for LLM deployment and high-performance inference.</p>
 
-**AI infrastructure inspection, diagnostics, and optimization intelligence for LLM deployment and high-performance inference.**
+  <p>
+    <a href="https://github.com/arpingblue/AIStat/releases/latest"><img alt="Release" src="https://img.shields.io/github/v/release/arpingblue/AIStat?style=flat-square&color=28c780"></a>
+    <a href="https://github.com/arpingblue/AIStat/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/arpingblue/AIStat/ci.yml?branch=main&style=flat-square&label=CI"></a>
+    <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-blue?style=flat-square"></a>
+    <img alt="Linux" src="https://img.shields.io/badge/Linux-amd64%20%7C%20arm64-f0b90b?style=flat-square&logo=linux&logoColor=black">
+    <img alt="NVIDIA" src="https://img.shields.io/badge/NVIDIA-GPU-76B900?style=flat-square&logo=nvidia&logoColor=white">
+  </p>
 
-AIStat unifies the analysis of hardware topology, the CUDA software stack, containers, and inference runtimes on Linux NVIDIA nodes. Its purpose is to find deployment blockers and performance bottlenecks, explain the evidence behind them, and produce optimization recommendations that engineers can verify.
+  <p><a href="README.zh-CN.md">简体中文</a> · <a href="#install">Install</a> · <a href="#commands">Commands</a> · <a href="docs/architecture.md">Architecture</a> · <a href="docs/rules.md">Rules</a></p>
+</div>
 
-The long-term goal is not another GPU inventory command. AIStat is being built to turn GPU-server facts into an explainable optimization workflow for large-model deployment and inference: understand every layer of the node, diagnose cross-layer problems, recommend changes, and verify whether those changes actually improve the workload.
+---
 
-> **Understand the node. Diagnose the stack. Optimize the inference path.**
+AIStat is an AI infrastructure inspection and diagnosis tool for Linux NVIDIA nodes. It connects hardware topology, the CUDA software stack, containers, and inference runtimes into one operator-focused report—so deployment blockers and performance risks are visible before they become an incident.
 
-## Project status
-
-AIStat is preparing for `v0.1.0`.
-
-- Windows portable tests and Linux-fixture tests pass.
-- Ubuntu CPU-only GitHub Actions, race tests, static analysis, release cross-builds, installer simulation, and GoReleaser snapshot pass.
-- A real NVIDIA Linux integration run is still required before publishing `v0.1.0`.
-- No stable release tag has been published yet.
-
-See [validation status](docs/validation.md) for the exact release gates.
-
-## Product vision
+It is not another `nvidia-smi` wrapper. AIStat is the read-only foundation for a larger goal: turning GPU-server facts into a verifiable optimization workflow for large-model deployment and inference.
 
 ```text
-Inspect -> Model -> Diagnose -> Recommend -> Validate -> Optimize
+Inspect  →  Model  →  Diagnose  →  Recommend  →  Validate  →  Optimize
 ```
 
-AIStat is designed around a progressive optimization loop:
+## See the node, not a pile of commands
 
-1. **Inspect:** collect trustworthy facts from hardware, Linux, NVIDIA, containers, and inference runtimes.
-2. **Model:** connect CPU, NUMA, PCIe, GPU, NIC/RDMA, CUDA, containers, and processes in one topology-aware node model.
-3. **Diagnose:** identify deployment blockers, compatibility failures, resource-placement mistakes, and performance bottlenecks.
-4. **Recommend:** produce evidence-backed optimization plans instead of generic tuning advice.
-5. **Validate:** compare the relevant facts and workload results before and after a change.
-6. **Optimize:** evolve toward a controlled, auditable optimization workflow for GPU servers running large-model inference.
+Run `aistat` after SSHing into a server:
 
-The current `v0.1` is the read-only foundation of that vision. It focuses on node visibility, normalized modeling, topology, runtime context, and conservative diagnostics. It does **not** yet claim automatic tuning or autonomous host modification.
+```text
+AIStat 0.1.0 — Node Status
 
-## Current v0.1 foundation
+Hardware
+  GPUs       AVAILABLE 4 × NVIDIA L20
+  CPU        AVAILABLE 2 sockets, 96 cores, 192 logical
+  Memory     AVAILABLE 1007.4 GiB
+  NUMA       AVAILABLE 2 nodes
 
-| Layer | Coverage |
+NVIDIA Stack
+  Driver     PASS      580.159.03
+  CUDA       AVAILABLE driver capability 13.0; selected toolkit 13.0
+  Xid log    PERMISSION DENIED kernel log could not be fully inspected
+
+Containers
+  Client     AVAILABLE docker 29.5.2
+  Daemon     AVAILABLE 29.5.2
+  NVIDIA CTK AVAILABLE 1.19.0
+
+AI Runtimes
+  PyTorch    installed=AVAILABLE running=NOT DETECTED instances=0
+  vLLM       installed=AVAILABLE running=NOT DETECTED instances=0
+  SGLang     installed=NOT DETECTED running=NOT DETECTED instances=0
+
+Readiness
+  Deployment  READY
+  Performance UNKNOWN — runtime workload evidence is not available
+```
+
+The result is deliberately conservative: unavailable evidence is reported as unavailable, never converted into a false PASS.
+
+## What AIStat connects
+
+| Layer | What AIStat inspects |
 |---|---|
-| Host | OS, kernel, architecture, CPU topology/cache/frequency, memory, huge pages, NUMA |
-| I/O topology | PCIe hierarchy and link state, GPU-to-NUMA, GPU-to-GPU, GPU-to-NIC/RDMA, storage |
-| NVIDIA stack | GPU inventory and health, driver, driver-supported CUDA, installed CUDA toolkits, NCCL, Xid events |
-| Containers | Docker availability, NVIDIA Container Toolkit, cgroup/cpuset/memory, shared memory, GPU visibility |
-| AI runtimes | Process affinity, PyTorch CUDA probe, vLLM and SGLang placement/parallelism |
-| Diagnosis | Deployment readiness, performance readiness, and 25 evidence-backed rules |
+| **Hardware** | CPU, memory, NUMA, PCIe, GPU, NIC/RDMA, storage |
+| **NVIDIA stack** | Driver, CUDA capability and toolkits, NCCL, Xid visibility |
+| **Containers** | Docker client/daemon, NVIDIA Container Toolkit, runtime/CDI, GPU requests |
+| **AI runtimes** | PyTorch, vLLM, SGLang installations and active process context |
+| **Topology** | GPU↔GPU P2P, GPU↔NUMA, GPU↔NIC/RDMA placement |
+| **Diagnosis** | Deployment readiness, performance readiness, 25 evidence-backed rules |
 
-The frozen rule catalog is documented in [docs/rules.md](docs/rules.md).
+Typical questions it answers:
 
-## Supported scope
+- Can this node deploy a GPU inference workload right now?
+- Is the driver/CUDA/runtime path coherent?
+- Is Docker unavailable, stopped, or merely blocked by permissions?
+- Is NVIDIA Container Toolkit installed and configured?
+- Where are PyTorch, vLLM, and SGLang installed, and are they running?
+- Are GPUs and network devices placed across NUMA boundaries?
+- Which findings are confirmed, and which remain inspection gaps?
 
-- Linux `amd64` and `arm64`
-- NVIDIA GPUs
-- Docker and NVIDIA Container Toolkit
-- PyTorch, vLLM, and SGLang best-effort discovery
-- single-node inspection
-- normal-user, read-only operation
+## Install
 
-Kubernetes, Slurm, multi-node inventory, AMD/Intel accelerators, monitoring, profiling, automatic tuning, host mutation, and benchmark execution are outside v0.1.
+### User-only installation
 
-## Build from source
+No root access is required. The installer verifies the release checksum and writes only to `~/.local/bin`:
 
-Go 1.26.5 is the pinned toolchain.
+```bash
+mkdir -p "$HOME/.local/bin"
+curl -fsSL https://raw.githubusercontent.com/arpingblue/AIStat/v0.1.0/scripts/install.sh | \
+  AISTAT_VERSION=v0.1.0 AISTAT_INSTALL_DIR="$HOME/.local/bin" sh
+export PATH="$HOME/.local/bin:$PATH"
+aistat version
+```
+
+Persist the path for future shells if necessary:
+
+```bash
+printf '\nexport PATH="$HOME/.local/bin:$PATH"\n' >> "$HOME/.bashrc"
+```
+
+### Manual installation
+
+Download the archive for `linux-amd64` or `linux-arm64` from the [latest release](https://github.com/arpingblue/AIStat/releases/latest), verify it with `checksums.txt`, extract `aistat`, and place it in a directory on your `PATH`.
+
+AIStat is a statically linked single binary. The inspection itself does not access the network, install packages, start services, or modify the host.
+
+## Commands
+
+| Command | Use it for |
+|---|---|
+| `aistat` / `aistat status` | Fast operator overview and top actions |
+| `aistat check` | Detailed findings, evidence, impact, recommendations, and verification |
+| `aistat info` | Hardware and node inventory |
+| `aistat stack` | NVIDIA, CUDA, Docker, and Container Toolkit state |
+| `aistat runtime` | PyTorch, vLLM, and SGLang installations and instances |
+| `aistat topology` | Compact NUMA/GPU/NIC tree and GPU P2P matrix |
+| `aistat explain RULE_ID` | Explain one diagnostic rule |
+| `aistat version` | Build version, commit, and time |
+
+Useful examples:
+
+```bash
+# Fast human-readable status
+aistat
+
+# Full machine-readable report
+aistat check --format json > aistat-report.json
+
+# Detailed diagnosis; warnings also fail CI
+aistat check --profile llm-inference --fail-on warn
+
+# GPU and physical NIC/RDMA locality
+aistat topology --view gpu-nic
+
+# Explain a finding
+aistat explain CTR002
+```
+
+Human output uses color only on an interactive terminal. JSON, redirected output, `--no-color`, and `NO_COLOR` never contain ANSI control sequences.
+
+## Designed for trustworthy diagnostics
+
+**Evidence before conclusions.** Facts distinguish `available`, `not_detected`, `unsupported`, `permission_denied`, `timeout`, `parse_error`, and `unknown`. Inspection gaps stay visible.
+
+**Read-only by default.** AIStat does not tune sysctls, alter drivers, change Docker groups, launch containers, run benchmarks, or write configuration.
+
+**Bounded collection.** External commands use a fixed allowlist, no shell, strict deadlines, output limits, and process-tree cleanup.
+
+**Runtime-aware without execution.** Package discovery reads bounded metadata. It does not `import vllm`, scan other users' homes, use `docker exec`, or start a workload.
+
+**One canonical JSON report.** Human views are projections of the same versioned model defined by the [0.1 JSON Schema](docs/schema/report-v0.1.schema.json).
+
+## Topology that operators can read
+
+```text
+Host
+├── NUMA 0  CPUs 0-47,96-143
+│   ├── GPU0  NVIDIA L20  0000:3b:00.0
+│   └── NIC   mlx5_0 / ens6f0  0000:41:00.0
+└── NUMA 1  CPUs 48-95,144-191
+    ├── GPU2  NVIDIA L20  0000:9a:00.0
+    └── NIC   mlx5_2 / ens12f0 0000:a1:00.0
+
+GPU P2P
+      GPU0 GPU1 GPU2 GPU3
+GPU0   —   PIX  SYS  SYS
+GPU1  PIX   —   SYS  SYS
+GPU2  SYS  SYS   —   PIX
+GPU3  SYS  SYS  PIX   —
+```
+
+The default human view stays compact. The JSON report retains the complete CPU, process, PCIe, and topology graph for automation.
+
+## Scope of v0.1.0
+
+The first public release supports Linux `amd64` and `arm64`, NVIDIA GPUs, Docker/NVIDIA Container Toolkit, and best-effort discovery of PyTorch, vLLM, and SGLang on a single node.
+
+It is a diagnostic foundation—not yet a benchmark suite, profiler, monitoring daemon, Kubernetes/Slurm inventory system, or automatic tuning engine. Performance readiness may remain `UNKNOWN` when there is no active workload or time-series evidence; the report explains why.
+
+See [validation](docs/validation.md) for tested environments and current limits.
+
+## Roadmap
+
+- **v0.2 — Verify:** compare before/after reports and validate optimization changes.
+- **v0.3 — Observe:** bounded short-window sampling for GPU, PCIe, NVLink, NUMA, CPU pressure, and RDMA.
+- **v0.4 — Diagnose inference:** correlate vLLM/SGLang/PyTorch placement and parallelism with bottleneck evidence.
+- **Later:** optional DCGM/eBPF adapters, controlled benchmarks, offline HTML reports, and a read-only MCP interface.
+
+The product direction remains: **understand the node, diagnose the stack, optimize the inference path—then prove the change helped.**
+
+## Build and contribute
+
+AIStat uses Go 1.26.5:
 
 ```bash
 git clone https://github.com/arpingblue/AIStat.git
 cd AIStat
 go test ./...
 CGO_ENABLED=0 go build -trimpath -o aistat ./cmd/aistat
-./aistat version
 ```
 
-Windows development commands:
-
-```powershell
-.\scripts\dev.ps1 test
-.\scripts\dev.ps1 cross
-```
-
-The cross-build command produces Linux binaries; it does not claim to validate live Linux or NVIDIA collection.
-
-## Installation
-
-There is no stable binary release yet. After a version such as `v0.1.0` is published, the checksum-verifying installer can be used on Linux:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/arpingblue/AIStat/main/scripts/install.sh | \
-  AISTAT_VERSION=v0.1.0 sh
-```
-
-The installer needs network access. The installed `aistat` inspection command does not.
-
-## Usage
-
-Running `aistat` without a subcommand is equivalent to `aistat check`.
-
-```text
-aistat check [--format human|json] [--profile general|llm-inference]
-aistat info [--format human|json]
-aistat topology [--view tree|gpu|gpu-nic] [--format human|json]
-aistat stack [--format human|json]
-aistat runtime [--format human|json]
-aistat explain RULE_ID [--format human|json]
-aistat version [--format human|json]
-```
-
-Useful examples:
-
-```bash
-aistat check
-aistat check --format json
-aistat check --profile general --fail-on warn
-aistat topology --view gpu-nic
-aistat explain NUMA001
-```
-
-Every inspection has a bounded timeout (`10s` by default). `--fail-on warn` is useful in stricter CI policies.
-
-### Exit codes
-
-| Code | Meaning |
-|---:|---|
-| `0` | Inspection completed and no failing finding was produced |
-| `1` | Inspection completed with a failing finding, or with a warning under `--fail-on warn` |
-| `2` | Usage or internal execution error |
-
-### Evidence states
-
-Missing evidence is never treated as success. Collectors preserve states such as `available`, `not_detected`, `unsupported`, `permission_denied`, `timeout`, `parse_error`, and `unknown`. Rules can therefore return `pass`, `warn`, `fail`, `info`, `unknown`, or `skip` without inventing facts.
-
-The versioned JSON contract is described in [docs/data-model.md](docs/data-model.md) and defined by [report-v0.1.schema.json](docs/schema/report-v0.1.schema.json).
-
-## Architecture
-
-```text
-Collectors -> Facts -> Normalizer -> Snapshot -> Topology Graph
-                                                    |
-                                                    v
-                                  Profile + Rules -> Report
-```
-
-- Collectors gather facts and diagnostics; they do not recommend changes.
-- Rules consume only the normalized snapshot, topology graph, profile, and clock.
-- Reporters render one canonical report model and do not recalculate rules.
-
-More detail is available in [architecture](docs/architecture.md), [collectors](docs/collectors.md), and [topology](docs/topology.md).
-
-## Privacy and safety
-
-AIStat uses a fixed executable allowlist, never invokes a shell, caps command output, and terminates timed-out process trees. Process arguments and environments use narrow allowlists. Raw command lines, arbitrary environments, tokens, prompts, credentials, host mutation, and telemetry are excluded by design.
-
-See [security design](docs/security.md) and [security policy](SECURITY.md).
-
-## Testing
-
-```bash
-go test ./...
-go vet ./...
-make fuzz       # bounded parser fuzz runs
-```
-
-Normal CI does not require NVIDIA hardware. Sanitized fixtures cover portable parser, model, graph, rule, report, privacy, and failure-state behavior. Real NVIDIA validation remains a manual release gate and must be recorded in [docs/validation.md](docs/validation.md).
-
-## Contributing
-
-Read [CONTRIBUTING.md](CONTRIBUTING.md) and [AGENTS.md](AGENTS.md). Rule changes require trigger, pass, unknown, skip, boundary, and relevant false-positive regression tests.
+Read [CONTRIBUTING.md](CONTRIBUTING.md), the [architecture](docs/architecture.md), [collector contract](docs/collectors.md), [rule catalog](docs/rules.md), and [security model](docs/security.md) before contributing.
 
 ## License
 
-[Apache License 2.0](LICENSE).
+AIStat is available under the [Apache License 2.0](LICENSE).

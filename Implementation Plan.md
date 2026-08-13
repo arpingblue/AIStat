@@ -1167,13 +1167,14 @@ aistat
 等价：
 
 ```bash
-aistat check --profile llm-inference
+aistat status --profile llm-inference
 ```
 
 ### CLI
 
 ```text
 aistat
+aistat status
 aistat check
 aistat info
 aistat topology
@@ -1193,7 +1194,7 @@ aistat version
 --fail-on fail|warn
 ```
 
-`--format human` 是公开名称；内部实现可以继续使用 `FormatHuman`。JSON 状态使用小写，Human 输出使用大写。`--fail-on warn` 使 WARN 也返回 exit code 1，便于严格 CI；默认仍只对 FAIL 返回 1。
+`aistat` 与 `aistat status` 提供节点运维总览；`check` 输出完整 Finding、证据与建议。`--format human` 是公开名称；内部实现可以继续使用 `FormatHuman`。JSON 状态使用小写，Human 输出使用大写。`--fail-on warn` 使 WARN 也返回 exit code 1，便于严格 CI；默认仍只对 FAIL 返回 1。
 
 建议 V0.1 **不用 Cobra**，采用 Go 标准库 `flag` + 小型 dispatcher，减少依赖和 binary surface。
 

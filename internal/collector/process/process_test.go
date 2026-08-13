@@ -57,6 +57,25 @@ func TestContainerID(t *testing.T) {
 	}
 }
 
+func TestDetectRuntimeKindBeforeRedaction(t *testing.T) {
+	tests := []struct {
+		args []string
+		want string
+	}{
+		{[]string{"vllm", "serve", "model"}, "vllm"},
+		{[]string{"python", "-m", "vllm.entrypoints.openai.api_server"}, "vllm"},
+		{[]string{"python", "/opt/sglang/launch_server.py"}, "sglang"},
+		{[]string{"torchrun", "serve.py"}, "pytorch"},
+		{[]string{"python", "-m", "torch.distributed.run"}, "pytorch"},
+		{[]string{"python", "my-vllm-notes.py"}, ""},
+	}
+	for _, test := range tests {
+		if got := detectRuntimeKind(test.args); got != test.want {
+			t.Fatalf("args=%v got=%q want=%q", test.args, got, test.want)
+		}
+	}
+}
+
 func FuzzParseAllowedArgs(f *testing.F) {
 	f.Add("--tensor-parallel-size", "4")
 	f.Add("--api-key", "secret")
