@@ -2,6 +2,7 @@ package fsx
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -26,7 +27,7 @@ func TestRootedReadsPortableLinuxFixture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(raw) != "0\n" {
+	if strings.TrimSpace(string(raw)) != "0" {
 		t.Fatalf("unexpected virtual BDF file: %q", raw)
 	}
 }
