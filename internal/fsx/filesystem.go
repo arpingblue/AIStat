@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"strings"
 )
 
@@ -34,15 +33,17 @@ func (r Rooted) resolve(name string) (string, error) {
 		return "", err
 	}
 	clean := filepath.Clean(strings.TrimLeft(filepath.ToSlash(name), "/"))
-	if runtime.GOOS == "windows" {
-		parts := strings.Split(filepath.ToSlash(clean), "/")
-		for i, part := range parts {
-			if strings.Count(part, ":") == 2 && strings.Contains(part, ".") {
-				parts[i] = strings.ReplaceAll(part, ":", "_")
-			}
+	// Fixture PCI BDF directory names are encoded with underscores so the
+	// same fixture tree can be checked out on Windows. Decode/encode them
+	// consistently on every host; otherwise Linux tests enumerate a decoded
+	// name and then fail to resolve its fixture files.
+	parts := strings.Split(filepath.ToSlash(clean), "/")
+	for i, part := range parts {
+		if strings.Count(part, ":") == 2 && strings.Contains(part, ".") {
+			parts[i] = strings.ReplaceAll(part, ":", "_")
 		}
-		clean = filepath.FromSlash(strings.Join(parts, "/"))
 	}
+	clean = filepath.FromSlash(strings.Join(parts, "/"))
 	if clean == "." {
 		return root, nil
 	}
