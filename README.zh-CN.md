@@ -1,6 +1,6 @@
 # AIStat
 
-[English](README.md)
+[English](README.md) | **简体中文**
 
 AIStat用于检查Linux NVIDIA服务器的GPU拓扑、CUDA软件栈、容器、AI运行时和部署问题。
 
@@ -141,7 +141,17 @@ go test ./...
 CGO_ENABLED=0 go build -trimpath -o aistat ./cmd/aistat
 ```
 
-欢迎参与开发。修改采集器、规则或公开报告模型前，请先阅读 [CONTRIBUTING.md](CONTRIBUTING.md)。
+## 参与贡献
+
+欢迎提交Issue和Pull Request。
+
+- **发现Bug：** 请创建 [Issue](https://github.com/arpingblue/AIStat/issues)，说明AIStat版本、系统信息、执行命令、预期行为，并提供已经脱敏的输出。
+- **提出功能建议：** 请描述实际运维问题、AIStat可以取得的证据以及最终如何验证结果。
+- **提交代码：** PR应保持目标明确、补充测试、维持只读行为；用户可见内容发生变化时同步更新中英文文档。
+
+不要公开密钥或未经处理的生产环境采集。安全漏洞请按照 [SECURITY.md](SECURITY.md)报告，不要创建公开Issue。
+
+修改采集器、规则、外部命令或公开JSON模型前，请阅读完整的[中文贡献指南](CONTRIBUTING.zh-CN.md)。
 
 ## 开源许可
 

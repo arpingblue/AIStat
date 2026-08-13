@@ -1,6 +1,6 @@
 # AIStat
 
-[简体中文](README.zh-CN.md)
+**English** | [简体中文](README.zh-CN.md)
 
 AIStat checks Linux NVIDIA servers for GPU topology, the CUDA stack, containers, AI runtimes, and deployment problems.
 
@@ -141,7 +141,17 @@ go test ./...
 CGO_ENABLED=0 go build -trimpath -o aistat ./cmd/aistat
 ```
 
-Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) before changing collectors, rules, or the public report model.
+## Contributing
+
+Issues and pull requests are welcome.
+
+- **Found a bug?** Open an [issue](https://github.com/arpingblue/AIStat/issues) with the AIStat version, system information, command, expected behavior, and sanitized output.
+- **Have an idea?** Describe the operational problem, the evidence AIStat could collect, and how the result could be verified.
+- **Want to contribute code?** Keep the pull request focused, add tests, preserve read-only behavior, and update both languages when user-facing behavior changes.
+
+Do not post secrets or raw production captures. Security vulnerabilities should follow [SECURITY.md](SECURITY.md), not a public issue.
+
+Read the complete [contribution guide](CONTRIBUTING.md) before changing collectors, rules, external commands, or the public JSON model.
 
 ## License
 
