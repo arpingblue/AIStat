@@ -130,6 +130,14 @@ Performance readiness may remain `UNKNOWN` when no active workload or time-serie
 
 The next major step is before/after report comparison so recommendations can be verified. See [validation](docs/validation.md), [architecture](docs/architecture.md), [collectors](docs/collectors.md), [rules](docs/rules.md), and the [JSON Schema](docs/schema/report-v0.1.schema.json).
 
+## Long-term direction
+
+```text
+Check → Diagnose → Monitor → Benchmark → Optimize → Verify
+```
+
+Version `0.1` provides the read-only Check and Diagnose foundation. Later stages will add bounded observation, reproducible benchmarks, evidence-backed optimization plans, and before/after verification. Monitoring, benchmark execution, and host optimization are not current `0.1` capabilities.
+
 ## Build
 
 Go 1.26.5 is used for development:

@@ -6,7 +6,7 @@
 
 v0.1 的工程目标不是做“更多命令的包装器”，而是建立一条稳定的数据管线：**Collect Facts → Normalize → Build Topology → Detect Runtime Context → Evaluate Rules → Produce Explainable Findings**。Linux 原生 `/proc`、`/sys`、cgroup 应作为首选数据源；`nvidia-smi`、Docker、PyTorch、vLLM、SGLang 等官方接口用于补足领域信息。Linux cgroup v2 官方文档定义了 `cpuset.cpus`、`cpuset.mems` 等资源约束；NVIDIA `nvidia-smi topo` 已能提供 GPU、NIC、NVMe、CPU/MEM affinity 和 NUMA 等拓扑信息，因此这些都可以成为 AIStat 的事实来源，而不是自行猜测。citeturn3search1turn6view2
 
-v0.1 的真正产品资产是 **Normalized Node Model + Topology Graph + Ruleset**。后续 Monitoring、Diagnose、Optimize、Apply、Rollback 都应该复用同一数据模型，避免未来推倒重来。
+v0.1 的真正产品资产是 **Normalized Node Model + Topology Graph + Ruleset**。长期产品闭环固定为 **Check → Diagnose → Monitor → Benchmark → Optimize → Verify**，所有阶段都复用同一数据模型，避免未来推倒重来；当前v0.1只实现Check与Diagnose的只读基础。
 
 **冻结的产品定义：**
 

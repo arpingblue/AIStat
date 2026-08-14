@@ -3139,36 +3139,38 @@ hardware-needed
 
 ### 长期路线图
 
-V0.1 不是最终产品，而是后续所有能力的地基：
+V0.1 不是最终产品，而是后续所有能力的地基。统一 Facts、Topology、Runtime Model 和 Rules 为整个产品生命周期提供同一套证据：
 
 ```text
-                    AIStat
-                      │
-                      ▼
-                    Facts
-                      │
-                      ▼
-                   Topology
-                      │
-                      ▼
-                 Runtime Model
-                      │
-                      ▼
-                    Rules
-                      │
-          ┌───────────┼───────────┐
-          ▼           ▼           ▼
-        Check      Diagnose     Explain
-                      │
-                      ▼
-                   Monitor
-                      │
-                      ▼
-                   Optimize
-                      │
-                      ▼
-                    Verify
+Facts → Topology → Runtime Model → Rules
 ```
+
+面向用户的长期演进路径固定为：
+
+```text
+Check
+  ↓
+Diagnose
+  ↓
+Monitor
+  ↓
+Benchmark
+  ↓
+Optimize
+  ↓
+Verify
+```
+
+- **Check：** 建立节点硬件、NVIDIA软件栈、容器和AI运行时的可信基线。
+- **Diagnose：** 把事实、拓扑和运行时上下文关联起来，发现部署阻塞、配置错误与性能风险。
+- **Monitor：** 持续观察GPU、系统、容器和推理服务的状态变化，捕获快照检查看不到的动态问题。
+- **Benchmark：** 使用受控且可复现的测试测量GPU互联、通信、存储、网络和推理性能，形成优化前基线。
+- **Optimize：** 根据诊断与基准证据生成带风险、回滚和适用条件的优化方案；默认仍然只输出计划。
+- **Verify：** 重新检查和测试，对比优化前后结果，证明改动有效且没有引入新的退化。
+
+Explain不是独立终点，而是贯穿六个阶段的横向能力：每个状态、结论、测试和建议都必须能够解释证据、权限缺口、风险和验证方式。
+
+当前 `v0.1` 主要完成 **Check + Diagnose** 的只读基础。Monitor、Benchmark、Optimize和Verify是后续阶段，不能在当前版本文档中被描述为已实现能力。
 
 #### Monitor
 
@@ -3191,6 +3193,24 @@ DCGM 已经专门提供 NVIDIA data-center GPU telemetry、health/diagnostic fie
 Release version：
 
 **未指定。**
+
+#### Benchmark
+
+未来编排成熟工具：
+
+```text
+NCCL Tests
+nvbandwidth
+fio
+iperf/perftest
+推理框架 benchmark
+```
+
+原则：
+
+> **Integrate, don't rewrite.**
+
+AIStat根据topology和runtime context建议应该测试的GPU pair、NIC pair、通信路径与推理场景，再记录工具版本、参数、环境、结果和采集开销。Benchmark必须显式执行、有时间和资源上限，并与默认只读检查分离。
 
 #### Optimize
 
@@ -3230,22 +3250,21 @@ before/after evidence
 
 V0.1 不实现任何 apply。
 
-#### Benchmark Integration
+#### Verify
 
-未来编排：
+Verify必须把建议与可验证结果闭环：
 
 ```text
-NCCL Tests
-nvbandwidth
-fio
-iperf/perftest
+before report + before benchmark
+              ↓
+       approved change
+              ↓
+ after report + after benchmark
+              ↓
+improved / unchanged / regressed / inconclusive
 ```
 
-原则：
-
-> **Integrate, don't rewrite.**
-
-AIStat Rule 可以根据 topology 自动建议“应该测哪个 GPU pair / NIC pair”，然后调用成熟 benchmark。
+验证结果必须保留证据覆盖率、环境差异、工作负载参数和统计置信度。证据不足时返回 `inconclusive`，不能为了完成闭环而宣称优化成功。
 
 #### Agent
 

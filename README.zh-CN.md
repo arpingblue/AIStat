@@ -130,6 +130,14 @@ AIStat只读运行，不会：
 
 下一阶段的重点是对比优化前后的报告，验证建议是否真正有效。更多资料见[验证记录](docs/validation.md)、[架构](docs/architecture.md)、[采集器](docs/collectors.md)、[规则](docs/rules.md)和 [JSON Schema](docs/schema/report-v0.1.schema.json)。
 
+## 长期发展方向
+
+```text
+Check → Diagnose → Monitor → Benchmark → Optimize → Verify
+```
+
+`0.1`系列提供只读的Check和Diagnose基础。后续阶段将逐步增加有界监测、可复现Benchmark、基于证据的优化方案以及优化前后验证。Monitor、Benchmark执行和主机优化不是当前 `0.1`已经实现的能力。
+
 ## 构建
 
 项目使用Go 1.26.5：
